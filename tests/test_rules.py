@@ -288,3 +288,28 @@ def test_the_model_is_asked_about_everything_the_rules_declined():
     )
     cascade.extract(item("Seven new partners join minterellison"), reliability_tier=2)
     assert spy.calls == 1
+
+
+# ---------------------------------------------------------------------------
+# Source hygiene
+# ---------------------------------------------------------------------------
+
+
+def test_no_source_file_contains_a_stray_control_character():
+    """A regex `\b` written through a shell heredoc can land as \x08.
+
+    That is a literal backspace, not a word boundary. It is invisible in an
+    editor and in grep output, and it silently disables the anchor — which has
+    already happened three times in this file and in body_rules.py, each time
+    producing wrong records rather than an error.
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    offenders = []
+    for path in [*(root / "tracker").rglob("*.py"), *(root / "tests").rglob("*.py")]:
+        text = path.read_text(encoding="utf-8")
+        bad = {c for c in text if ord(c) < 32 and c not in "\n\t"}
+        if bad:
+            offenders.append(f"{path.name}: {sorted(hex(ord(c)) for c in bad)}")
+    assert not offenders, f"control characters in source: {offenders}"

@@ -188,6 +188,11 @@ TEMPLATES: list[tuple[str, str, str]] = [
     # "Firm A promotes X to <title>"
     ("promotes_to", "promotion",
      rf"^{FIRM_A}\s+promotes?\s+{PERSON}\s+to\s+{TITLE}$"),
+    # "Mike Aiello, Weil Corporate Chair, Plans Exit for Cravath" — the person
+    # leads, an appositive names their current firm, the destination follows.
+    ("named_exit_for", "lateral",
+     rf"^{PERSON}\s*,[^.]{{0,80}}?\b(?:exit|exits|move|moves|jump|jumps|"
+     rf"depart|departs|defect|defects)\w*\s+(?:for|to)\s+{FIRM_A}"),
     # "X joins Firm A as <title>"
     ("joins_as", "lateral",
      rf"^{PERSON}\s+(?:re)?joins?\s+{FIRM_A}\s+as\s+{TITLE}$"),
@@ -251,6 +256,10 @@ class RuleExtractor:
             move = self._build(match, name, move_type, headline, item, reliability_tier)
             if move is None:
                 continue
+            # The headline gave us a person. The body usually knows where they
+            # came from, which the headline almost never says — so enrich
+            # rather than returning early.
+            self._enrich_from_body(move, headline, item, reliability_tier)
             result.is_movement = True
             result.moves.append(move)
             return result
@@ -275,7 +284,7 @@ class RuleExtractor:
         self, body: str, headline: str, item: RawItem, reliability_tier: int
     ) -> list[ExtractedMove]:
         """Records from the article body, with the destination from the headline."""
-        to_firm = body_rules.subject_firm(headline, self.gazetteer)
+        to_firm, headline_origin = body_rules.firm_pair(headline, self.gazetteer)
         if to_firm is None:
             return []
 
@@ -290,10 +299,12 @@ class RuleExtractor:
             if hit.title and not PARTNER_LEVEL_TITLE.search(hit.title):
                 continue
 
-            move_type = "lateral"
-            from_firm = hit.from_firm
-            if from_firm == to_firm:
-                move_type = "promotion"
+            # Origin, best evidence first: this person's own sentence, then
+            # the firm pair the headline set up.
+            from_firm = hit.from_firm or body_rules.origin_for(
+                person, body, self.gazetteer
+            ) or headline_origin
+            move_type = "promotion" if from_firm == to_firm else "lateral"
 
             fields: dict[str, VerifiedField] = {
                 "person_name": VerifiedField(
@@ -439,6 +450,59 @@ class RuleExtractor:
             team_size=None,
             self_confidence=0.9,
             confidence=components,
+        )
+
+    def _enrich_from_body(
+        self, move: ExtractedMove, headline: str, item: RawItem, reliability_tier: int
+    ) -> None:
+        """Fill in what the headline did not say, from the body and firm pair.
+
+        Only ever adds; a value the headline stated is never overwritten. The
+        origin firm is the field this matters for — headlines say where someone
+        is going far more often than where they came from, so without this the
+        firm-to-firm flow matrix is empty by construction.
+        """
+        if "from_firm" in move.fields:
+            return
+
+        person = move.value("person_name")
+        to_firm = move.value("to_firm")
+        origin = None
+
+        if item.body_text and person:
+            origin = body_rules.origin_for(person, item.body_text, self.gazetteer)
+        if origin is None:
+            _to, headline_origin = body_rules.firm_pair(headline, self.gazetteer)
+            origin = headline_origin
+        if origin is None or origin == to_firm:
+            return
+
+        # The span points at the evidence that named the origin, which is the
+        # headline when the firm pair supplied it and the body otherwise.
+        source_text = item.body_text or headline
+        at = source_text.find(origin)
+        offset = (len(headline) + 2) if item.body_text else 0
+        if at < 0:
+            at, offset = 0, 0
+            source_text = headline
+        move.fields["from_firm"] = VerifiedField(
+            name="from_firm",
+            value=origin,
+            span_start=offset + at,
+            span_end=offset + at + len(origin),
+            quality="recovered",
+            excerpt=_excerpt(source_text, at, at + len(origin)),
+        )
+        # Richness changed, so the score has to be recomputed rather than left
+        # describing the record as it was before enrichment.
+        present = {f for f in confidence.COMPLETENESS_WEIGHTS if f in move.fields}
+        move.confidence = confidence.score(
+            reliability_tier=reliability_tier,
+            access_level=item.access_level,
+            present_fields=present,
+            span_qualities=[f.quality for f in move.fields.values()],
+            self_reported=move.self_confidence,
+            dropped_fields=len(move.dropped),
         )
 
     def _firm(self, raw: str | None) -> str | None:

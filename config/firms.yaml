@@ -478,6 +478,44 @@ firms:
     hq: AU
     aliases: []
 
+  # --- US, added from Law.com and Global Legal Post headlines -----------
+  - name: Proskauer
+    type: global
+    aliases: [Proskauer Rose]
+  - name: Akerman
+    type: global
+    aliases: [Akerman LLP]
+  - name: Jackson Lewis
+    type: global
+    aliases: []
+  - name: Triay Lawyers
+    type: local
+    aliases: [Triay & Triay]
+  - name: Vossius
+    type: boutique
+    aliases: [Vossius & Partner]
+  - name: Gunnercooke
+    type: global
+    aliases: []
+  - name: Excello Law
+    type: global
+    aliases: []
+  - name: Carta Law
+    type: boutique
+    aliases: []
+  - name: Michelmores
+    type: global
+    aliases: []
+  - name: Collyer Bristow
+    type: global
+    aliases: []
+  - name: Joelson
+    type: boutique
+    aliases: []
+  - name: Smith Thompson
+    type: boutique
+    aliases: []
+
   # --- Korea / Japan / India -------------------------------------------
   - name: Kim & Chang
     type: regional
