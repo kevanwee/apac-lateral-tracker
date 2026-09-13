@@ -1,97 +1,153 @@
-# Handoff: APAC partner lateral-movement pipeline, Phases 0–2 complete, awaiting direction on Phase 3
+# Handoff: APAC partner lateral-movement pipeline — paused mid-fix on extraction yield
 
 ## Objective
 
-Build a production pipeline that ingests legal trade press and firm announcements,
-extracts partner-level lateral movements into structured records, deduplicates
-reports of the same move across outlets, classifies them against a fixed versioned
-practice-group taxonomy, and surfaces trends through a dashboard. Primary scope is
-APAC with Singapore, Hong Kong and Australia as depth markets. The brief is
-checkpoint-driven: stop after each phase group and report **evaluation numbers and
-decisions the user should overrule** — not a summary of what was built.
+Ingest legal trade press and firm announcements, extract partner-level lateral
+movements into structured records, deduplicate across outlets, classify against a
+fixed versioned practice-group taxonomy, and surface trends. APAC scope, with
+Singapore, Hong Kong and Australia as depth markets. Checkpoint-driven: stop after
+each phase group and report **evaluation numbers and decisions to overrule**, not a
+summary of what was built.
+
+Currently running the **$0 path** (rule-based extraction, no API key, no database).
 
 ## Current State
 
 Repo: **https://github.com/kevanwee/apac-lateral-tracker** (private, `main`).
-CI green: **195 tests + 1 deliberate xfail**, run against a real Postgres 16
-service container on every push. Nothing is mocked.
+CI green, **200 tests + 1 deliberate xfail**, against a real Postgres 16 in CI.
 
 | Phase | State |
 |---|---|
 | 0 Constraints | Done — `docs/constraints.md` |
-| 1 Schema | Done — 10 SQL migrations, invariants enforced by constraints + deferred triggers |
-| 2 Ingestion + extraction + gold set | Done — see below |
-| 3 Taxonomy & classification | **Not started** |
-| 4 Deduplication | **Not started** |
-| 5 Trend analytics | **Not started** |
-| 6 Scheduling | Catch-up workflow done; dashboard not started |
-| 7 Evaluation | Gold set + calibration guards exist; no extraction precision/recall yet |
+| 1 Schema | Done — 10 migrations, invariants enforced in-database |
+| 2 Ingestion + extraction + gold set | Done; **yield being actively improved** |
+| 3 Taxonomy & classification | Not started |
+| 4 Deduplication | Not started |
+| 5 Trend analytics | Not started |
+| 6 Scheduling | `catch-up` workflow done; no dashboard |
+| 7 Evaluation | Gold set (29/100) + calibration guards; no extraction P/R (needs API key) |
 
-**Sources** (`config/sources.yaml` is the whole config surface):
-- `rajah-tann-asia` — tier 1 firm newsroom, `paginated_feed`, reaches **April 2020**
-- `global-legal-post`, `australasian-lawyer` — tier 2 live feeds
-- `australasian-lawyer-archive`, `global-legal-post-archive` — `sitemap`, reach **2019**
-- `asian-legal-business` — registered **inactive**, 403s our client on every path
-- `alb-newsletter` — `imap`, built and **off by default** pending credentials
+### The live collection run (the thing being worked on)
 
-**Measured numbers so far:**
-- Relevance gate: 83% of live items rejected; 96% precision, 100% recall on the fixture
-- Sitemap enumeration: 2,868 AU URLs since 2024 from **3 HTTP requests**
-- Rule extractor on 192 live gate-passed headlines: **10 records, 10 correct, 0 false positives, 95% abstention, $0.00**
-- Gold set: **29 records / 33 moves** (23 live, 6 synthetic) against a target of 100
+`tracker collect --since 2019-01-01 --extractor rules` — no database needed, $0.00:
+
+```
+8,083 items fetched  →  760 passed the gate  →  23 records
+```
+
+23 records, **every name correct**, spanning 2022–2026. Output in `collected.json`
+(gitignored). **The user's stated concern: 23 from 760 is too low.**
+
+### Diagnosis of the low yield (measured, not guessed)
+
+Categorised all 698 gate-passed Australasian Lawyer headlines:
+
+| Share | Cause |
+|---|---|
+| **63%** | Known firm, but no template fits — and on inspection **most have no person name in the headline at all** |
+| **27%** | Firm not in the gazetteer |
+| **7%** | Template matched, a precision guard rejected it |
+| **3%** | Extracted |
+
+**The key finding: this is an information ceiling, not a parsing one.** Australasian
+Lawyer's house style is "Holding Redlich welcomes IP partner" — the name is in the
+article body, never the headline. No template can fix that.
+
+Proof the body has what is missing: the article behind *"Bartier Perry brings in
+first chief transformation officer appoints four partners"* contains
+*"...in Roger Habib... Alison Cui, Kate Ralph, Raffael Maestri and Mario Rashid-Ring
+becoming the firm's newest partners. Cui is a lateral hire from HNT Legal"* —
+five named partners from a headline naming none.
+
+### Sources as they now stand
+
+| Slug | Adapter | On? | Note |
+|---|---|---|---|
+| `rajah-tann-asia` | paginated_feed | yes | tier 1, reaches Apr 2020 |
+| `global-legal-post` | feed | yes | live window only |
+| `australasian-lawyer` | feed | yes | litigation-heavy, low movement yield |
+| `law-com-international` | feed | yes | **new**, brief-named, names in headlines |
+| `law-com-american-lawyer` | feed | yes | **new**, brief-named |
+| `australasian-lawyer-archive` | sitemap | yes | 7,798 items back to 2019 |
+| `global-legal-post-archive` | sitemap | **no** | client-fingerprint 403, see below |
+| `asian-legal-business` | feed | **no** | 403 on everything incl. robots.txt |
+| `alb-newsletter` | imap | **no** | built; needs subscription + credentials |
 
 ## Key Decisions Made
 
-Do not re-litigate. Full rationale in `docs/data-model.md` ("Decisions worth contesting").
+Do not re-litigate. Rationale in `docs/data-model.md` and `docs/constraints.md`.
 
-1. **No Claude co-author trailer** on any commit or PR. User instruction, overrides default.
-2. **ALB is not scraped.** It 403s including `/robots.txt`; Phase 0 treats unretrievable robots as disallow. **Never vary the User-Agent to get past it.** The user's TDM/copyright argument is sound but Singapore's s.244 exception needs *lawful access* first. The IMAP newsletter is the lawful route.
-3. **No daily cron.** This is a historical record refreshed on demand: `tracker catch-up`, plus a quarterly workflow that opens a reminder issue rather than spending money unattended.
-4. **Article text is never stored.** `raw_items` has no body/content/summary column — absence *is* the policy. Provenance excerpts capped at 25 words by CHECK constraint.
-5. `unclassified` is a **real taxonomy node**, not a null, so unclassified moves stay in chart denominators and "exactly one primary practice group" stays enforceable.
-6. `to_firm` is nullable **only** for `retirement`; promotions must be within one firm; `move_type` must agree with firm kind at each end (trigger).
-7. **Merges never overwrite.** A canonical row is created; inputs keep their values and point at it via `superseded_by_move_id`. `canonical_moves` view is what analytics read.
-8. Tier 1 is reserved for a firm's own newsroom, by CHECK constraint.
-9. Jurisdictions are a **table**, not free text. Adding a market costs a migration — this already bit once (LA/KH/MM) and that was the design working.
-10. **Confidence was recalibrated** after measurement: completeness used to be 25% of the score and put 79% of *perfect* extractions into review against a 15% ceiling. It is now a 0.05 bonus. Dropped-span count and model self-doubt force review outright.
-11. **Span verification is the fabrication guard, not the model.** It is provider-agnostic, which makes a cheaper/weaker model safer here than usual.
-12. Default LLM is `claude-opus-5`. Rules-first extraction (`--extractor rules|llm|auto`) is the free path.
+1. **No Claude co-author trailer** on commits or PRs. User instruction.
+2. **No client impersonation, ever.** ALB 403s everything including robots.txt.
+   Global Legal Post serves `/sitemap.xml` to curl but 403s httpx **with an
+   identical User-Agent** while serving `/rss` and `/robots.txt` to both — a
+   client-fingerprint block. Getting past either means impersonating a different
+   client. We do not. Both are registered inactive with the evidence recorded.
+3. **Google News RSS is out**: `news.google.com/robots.txt` is `Disallow: /` with
+   an allow-list that excludes `/rss/`. Checked and rejected on our own rule.
+4. **Law.com is explicitly permitted**: `Allow: /`, `Crawl-delay: 1`, sitemaps
+   published. Our 10s floor exceeds their delay.
+5. **No daily cron.** Manual `tracker catch-up`; quarterly workflow opens a
+   reminder issue rather than spending unattended.
+6. **Article text is never stored.** `raw_items` has no body column; absence is the
+   policy. Provenance excerpts capped at 25 words by CHECK constraint.
+7. **Rules abstain rather than guess.** Six false-positive classes are regression
+   tests: role abbreviations (`Qic gc`), prepositional phrases (`in london`),
+   quantities (`even dozen`), practice epithets (`corrs ip star`), descriptive
+   epithets (`seasoned investment funds star`), non-partner titles (advisor).
+8. Confidence recalibrated: completeness is a 0.05 bonus, not 25% of the score.
+9. `unclassified` is a real taxonomy node; `to_firm` nullable only for retirement;
+   merges create a new row and mark the old superseded; tier 1 = firm newsrooms only.
 
 ## Constraints & Preferences
 
-- **Precision over coverage.** A false movement record is worse than a missed one.
-- **Measure, don't assert.** Every claim in a checkpoint report needs a number behind it. Do not report accuracy from a fixture you also authored — say so instead.
-- Plain SQL migrations, **immutable once applied** (checksummed). Add a new one; never edit.
-- Tests run against real Postgres in CI. An invariant only asserted in Python is not an invariant.
-- Politeness is enforced in `tracker/net/client.py`, not per adapter: 10s/origin floor, robots cached 24h, unretrievable robots = disallow, no UA rotation, no paywall circumvention, no headless rendering.
-- `html` sources stay blocked until `html_access_reviewed_at` is set by a human.
-- Commit in **small logical increments** ("slowly phase in the code pushes"), push, and watch CI before reporting.
-- ruff rule set is pinned in `pyproject.toml`; keep it green.
-- Heredocs in the Bash tool break on long multi-file writes — use the Write tool for files over ~100 lines.
+- **Precision over coverage.** A false record is worse than a missed one. But 3%
+  yield is too low — the user has said so explicitly.
+- **Measure, don't assert.** Every number in a report needs a run behind it.
+  Never report accuracy from a fixture you also authored.
+- Politeness lives in `tracker/net/client.py`: 10s/origin floor, robots cached 24h,
+  unretrievable robots = disallow, no UA rotation, no paywall circumvention.
+- HTML article reading is gated on `sources.html_access_reviewed_at` — a dated
+  human decision, not something an adapter enables itself.
+- Plain SQL migrations, immutable once applied. Tests hit real Postgres.
+- Commit in small logical increments, push, watch CI before reporting.
+- **Bash heredocs corrupt regex escapes** — `\b` became literal `\x08` backspace
+  bytes in `rules.py` and silently broke word boundaries. Use the Write/Edit tools
+  for anything containing regex or long multi-file content.
+- Windows Git Bash: `/tmp` does not resolve. Use `$TEMP`.
 
 ## Open Threads / Questions
 
-1. **No API credentials of any kind.** No `ANTHROPIC_API_KEY`, no `ant` CLI, no profile. Everything LLM-dependent is therefore unmeasured.
-2. **No extraction precision/recall.** Phase 7 requires >0.98 on `to_firm` and `person`. Blocked on (1).
-3. **Gold set is 29/100.** `test_gold_set_has_reached_its_target_size` is a strict xfail so the gap stays visible. Filling it needs a DB-backed backfill or ALB access.
-4. **Two things offered, neither accepted yet:**
-   - `--extractor local` Ollama provider. User has an **RTX 5070 Ti (16GB)** + 31GB RAM — runs Qwen3 14B comfortably, genuinely $0, nothing leaves the machine. Not built because it can't be tested on hardware I don't have.
-   - HTML article-page adapter behind the `html_access_reviewed_at` gate, to turn the ~27,000 headline-only sitemap leads into full records.
-5. **Review-queue rate on a cold database is unmeasured.** Gazetteer seeding (`tracker firms --sync`, 120 firms) should fix the every-move-goes-to-review problem, but nobody has run it end to end.
-6. `tracker/names.py` is an **honest stub** — assumes given-name-first, wrong for surname-first names. Under-merges rather than over-merges. Phase 4 replaces it; `gold-s001` and `gold-s004` are its tests.
+1. **`tracker/sources/article.py` is written but wired into nothing.** It converts
+   fetched HTML to article body text. This is the main unblock for yield.
+2. **No database.** User said they will create Postgres later. Until then
+   `tracker collect` (in-memory, writes JSON) is the only run path;
+   `tracker backfill` has nowhere to write.
+3. **No API key.** All LLM-dependent work and all Phase 7 precision/recall unmeasured.
+4. **Gold set 29/100**, strict xfail marks the gap.
+5. **ALB still unreached.** Newsletter/IMAP is built and is the lawful route; needs
+   the user to subscribe and set `IMAP_USERNAME`/`IMAP_PASSWORD`. A Wayback CDX
+   index route was probed (public API, returns 200, metadata only) and **not yet
+   discussed with the user** — it reads Internet Archive's index, not ALB's servers.
+6. `tracker/names.py` is an honest stub — assumes given-name-first, wrong for
+   surname-first names. Under-merges. Phase 4 replaces it.
 
 ## Immediate Next Step
 
-Read `README.md`, `docs/constraints.md` and `docs/data-model.md` to load the design,
-then **ask the user to pick one** — do not start building without an answer, because
-both are substantial and they conflict:
+Finish the yield fix, in this order:
 
-- **(a)** Build the `--extractor local` Ollama provider, completing the $0 path they
-  have been pushing toward for the last three turns.
-- **(b)** Proceed to **checkpoint 3** — Phase 3 classification (taxonomy YAML,
-  `taxonomy_mappings.yaml`, deterministic rule-first classification) and Phase 4
-  dedupe (blocking, scoring, name normalisation), with Phase 7 metrics against the
-  gold set. This needs an API key for the metrics to mean anything.
+1. **Wire `article.py` into the extract path.** Add a `--fetch-articles` flag to
+   `tracker collect`/`extract`; when a source has `html_access_reviewed_at` set and
+   an item has no body text, fetch the article through `PoliteClient` and pass the
+   body to the extractor. Australasian Lawyer's robots.txt allows the article paths
+   (`/au/news/`, `/au/practice-areas/`); only `/au/business-news/` and
+   `/nz/business-news/` are disallowed. **Ask the user to confirm the terms review
+   before enabling it** — that is what the gate is for.
+2. **Add body-aware templates** to `rules.py`. Current templates are anchored to a
+   headline with `^`/`$`; bodies need sentence-level patterns ("X is a lateral hire
+   from Y", "A, B and C becoming the firm's newest partners").
+3. **Re-run `tracker collect --since 2019-01-01`** and report the new yield against
+   the 23-record baseline. Budget ~2h for 698 AU articles at the 10s floor; make it
+   resumable.
 
-Their last message asked whether *any* of this can be free, so (a) is the likelier
-want — but the checkpoint protocol says Phase 3 is next, so confirm rather than assume.
+Then return to checkpoint 3 (classification + dedupe).
