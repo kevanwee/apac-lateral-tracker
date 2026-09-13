@@ -37,17 +37,18 @@ def sync_sources(conn: psycopg.Connection) -> tuple[int, int]:
         conn.execute(
             """
             INSERT INTO sources
-                (slug, name, base_url, feed_url, access_type, reliability_tier,
-                 firm_id, jurisdiction_focus, default_access_level, active,
-                 poll_interval, terms_url, terms_note,
-                 html_access_reviewed_at, html_access_reviewed_by)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                (slug, name, base_url, feed_url, access_type, adapter,
+                 reliability_tier, firm_id, jurisdiction_focus,
+                 default_access_level, active, poll_interval, terms_url,
+                 terms_note, html_access_reviewed_at, html_access_reviewed_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     make_interval(hours => %s), %s, %s, %s, %s)
             ON CONFLICT (slug) DO UPDATE SET
                 name = EXCLUDED.name,
                 base_url = EXCLUDED.base_url,
                 feed_url = EXCLUDED.feed_url,
                 access_type = EXCLUDED.access_type,
+                adapter = EXCLUDED.adapter,
                 reliability_tier = EXCLUDED.reliability_tier,
                 firm_id = EXCLUDED.firm_id,
                 jurisdiction_focus = EXCLUDED.jurisdiction_focus,
@@ -61,7 +62,8 @@ def sync_sources(conn: psycopg.Connection) -> tuple[int, int]:
             """,
             (
                 cfg.slug, cfg.name, cfg.base_url, cfg.feed_url, cfg.access_type,
-                cfg.reliability_tier, firm_id, list(cfg.jurisdiction_focus),
+                cfg.adapter, cfg.reliability_tier, firm_id,
+                list(cfg.jurisdiction_focus),
                 cfg.default_access_level,
                 # A blocked source is not active however the YAML labels it.
                 cfg.active and source.blocked_reason is None,
