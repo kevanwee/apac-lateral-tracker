@@ -1,0 +1,159 @@
+# Relevance gate cases.
+#
+# Every headline here is real, taken from the seeded feeds on 2026-09-13,
+# except the few marked `synthetic: true` which cover reporting patterns the
+# live feeds did not happen to contain that day.
+#
+# `expect: true` means the item must reach extraction. A false negative on a
+# `true` case is the expensive error: that move is never seen again. A false
+# positive on a `false` case costs one cheap model call.
+#
+# Grow this file from review queue resolutions and from gold set misses.
+
+version: 1
+
+cases:
+  # --- must pass -------------------------------------------------------
+
+  - headline: >-
+      Rajah & Tann Singapore Welcomes Scott Tan as Partner in International
+      Arbitration
+    tier: 1
+    expect: true
+    note: Canonical tier-1 partner hire announcement.
+
+  - headline: AHP Welcomes New Intellectual Property Partner Wiku Anindito
+    tier: 1
+    expect: true
+    note: Verein member firm announcing under its own name (AHP = Indonesia).
+
+  - headline: Rajah & Tann (Thailand) Limited strengthens its Tax Practice
+    tier: 1
+    expect: true
+    note: >-
+      Firm house style: no seniority word in the headline. Passes only because
+      tier 1 lowers the bar; would fail from a trade outlet.
+
+  - headline: >-
+      Signature Litigation hires seasoned litigator from Triay Lawyers to head
+      up Gibraltar office
+    tier: 2
+    expect: true
+    note: Seniority expressed as "head up", not "head of".
+
+  - headline: >-
+      Linklaters lures Wachtell dealmaker to become Americas managing partner
+    tier: 2
+    expect: true
+
+  - headline: The Associated Press names senior Dow Jones lawyer as GC
+    tier: 2
+    expect: true
+    note: >-
+      Role sits between the verb and the "as". Movement into in-house.
+
+  - headline: US asset manager Pimco plans internal promotion for GC replacement
+    tier: 2
+    expect: true
+
+  - headline: A five-partner corporate team departs Firm X for Firm Y in Hong Kong
+    tier: 2
+    expect: true
+    synthetic: true
+    note: Team move phrasing.
+
+  - headline: >-
+      Three partners leave Firm A to launch a new disputes boutique in Singapore
+    tier: 2
+    expect: true
+    synthetic: true
+    note: Firm launch.
+
+  - headline: >-
+      Wei Ming (Kevin) Tan SC rejoins Drew & Napier as head of restructuring
+    tier: 2
+    expect: true
+    synthetic: true
+    note: Western given name alongside legal name, plus post-nominal.
+
+  # --- must not pass ---------------------------------------------------
+
+  - headline: >-
+      Patrizia Mercuri named a justice of Federal Circuit and Family Court of
+      Australia, Division 1
+    tier: 2
+    expect: false
+    note: Judicial appointment. Real news, different dataset.
+
+  - headline: >-
+      Ex-civil justice deputy head Michael Briggs announced as UK Supreme Court
+      president
+    tier: 2
+    expect: false
+
+  - headline: The UK's Forum of Insurance Lawyers appoints next chief executive
+    tier: 2
+    expect: false
+    note: Trade body executive, not a partner.
+
+  - headline: Full Federal Court rejects ex-director's bid for Total Tools shares
+    tier: 2
+    expect: false
+
+  - headline: >-
+      Best Law Firms to Work for in Australia and New Zealand | 5-Star Employers
+      of Choice
+    tier: 2
+    expect: false
+
+  - headline: >-
+      Legaltech giant Harvey raises $550m in funding round to hit $15.5bn
+      valuation
+    tier: 2
+    expect: false
+
+  - headline: Football with a Heart 2026
+    tier: 1
+    expect: false
+
+  - headline: >-
+      Rajah & Tann marks 50 years with donations to two law schools and children
+      with special needs
+    tier: 1
+    expect: false
+
+  - headline: >-
+      Rajah & Tann Singapore Marks Earth Day with Youth Clean-Up at Kallang
+      Riverside Park
+    tier: 1
+    expect: false
+
+  - headline: >-
+      Rajah & Tann Singapore Joins the Mergers & Acquisitions Association
+      (Singapore) as a Platinum Corporate and Founding Member
+    tier: 1
+    expect: false
+    note: >-
+      The firm joins an organisation; no person moves. Nearest miss in the
+      set — "joins" plus a tier-1 lowered bar.
+
+  - headline: >-
+      Totally Legal: Empowering Nonprofits Series | Confidentiality in Action
+    tier: 1
+    expect: false
+
+  - headline: Supporting Children and Families, One Meaningful Experience at a Time
+    tier: 1
+    expect: false
+
+  - headline: Firm X advises on $2bn cross-border acquisition of Target Co
+    tier: 2
+    expect: false
+    synthetic: true
+    note: Deal announcement, not movement.
+
+  - headline: Firm Y welcomes its 2026 graduate trainee intake
+    tier: 1
+    expect: false
+    synthetic: true
+    note: Movement language, wrong seniority.

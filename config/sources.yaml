@@ -1,0 +1,89 @@
+# Source register.
+#
+# This file is the whole configuration surface for adding an outlet or a
+# region. `tracker sources sync` reconciles it into the `sources` table.
+# Adding a new market means adding entries here, not writing code.
+#
+# reliability_tier: 1 firm primary announcement
+#                   2 established trade press
+#                   3 aggregator or secondary
+# Tier 1 requires firm_name, enforced by a database constraint.
+#
+# access_level:     what the outlet actually exposes publicly.
+#                   headline_only means paywalled: confidence penalty, and no
+#                   corroboration boost. See docs/constraints.md section 3.
+
+version: 1
+
+sources:
+  # ---------------------------------------------------------------------
+  # Tier 1 — firm newsrooms (primary sources)
+  # ---------------------------------------------------------------------
+
+  - slug: rajah-tann-asia
+    name: Rajah & Tann Asia — Newsroom
+    firm_name: Rajah & Tann Asia
+    base_url: https://www.rajahtannasia.com
+    feed_url: https://www.rajahtannasia.com/feed
+    access_type: feed
+    adapter: feed
+    reliability_tier: 1
+    access_level: full_public
+    jurisdiction_focus: [SG, MY, TH, ID, VN, PH, CN, LA, KH, MM]
+    poll_interval_hours: 12
+    notes: >-
+      Regional network publishing member-firm announcements under several
+      entity names (Rajah & Tann Singapore, AHP in Indonesia, R&T Thailand).
+      Good early test of multi-entity firm naming.
+
+  # ---------------------------------------------------------------------
+  # Tier 2 — established trade press
+  # ---------------------------------------------------------------------
+
+  - slug: global-legal-post
+    name: The Global Legal Post
+    base_url: https://www.globallegalpost.com
+    feed_url: https://www.globallegalpost.com/rss
+    access_type: feed
+    adapter: feed
+    reliability_tier: 2
+    access_level: summary
+    jurisdiction_focus: [GB, US, SG, HK, AE]
+    poll_interval_hours: 6
+
+  - slug: australasian-lawyer
+    name: Australasian Lawyer
+    base_url: https://www.australasianlawyer.com.au
+    feed_url: https://www.australasianlawyer.com.au/rss
+    access_type: feed
+    adapter: feed
+    reliability_tier: 2
+    access_level: summary
+    jurisdiction_focus: [AU, NZ]
+    poll_interval_hours: 6
+    notes: >-
+      robots.txt disallows /au/business-news/ and /nz/business-news/; the
+      client honours that, so some feed entries will be skipped by design.
+
+  # ---------------------------------------------------------------------
+  # Registered but not collected
+  # ---------------------------------------------------------------------
+  # Kept here rather than deleted so the reason is on the record and a later
+  # licensing conversation has somewhere to land.
+
+  - slug: asian-legal-business
+    name: Asian Legal Business (ALB)
+    base_url: https://www.legalbusinessonline.com
+    feed_url: https://www.legalbusinessonline.com/rss
+    access_type: feed
+    adapter: feed
+    reliability_tier: 2
+    access_level: headline_only
+    jurisdiction_focus: [SG, HK, CN, JP, KR, IN, MY, ID, TH, VN, PH, AU]
+    active: false
+    blocked_reason: >-
+      The origin returns 403 to our client for every path including
+      /robots.txt (checked 2026-09-13). Phase 0 treats an unretrievable
+      robots.txt as disallow, and we do not vary the User-Agent to get
+      around an edge block. Collection stays off until Key Media grants
+      access — a licensing question, not a technical one.
