@@ -14,21 +14,71 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import date
+from urllib.parse import urlparse
 
 import psycopg
 import pytest
+from dotenv import load_dotenv
 from psycopg.rows import dict_row
 
 from tracker import migrate
 
+# Load .env here rather than relying on some imported module having done it.
+# Whether DATABASE_URL was visible used to depend on test collection order, so
+# the guard below would sometimes skip instead of refusing — which is precisely
+# how a production database got dropped.
+load_dotenv(override=False)
+
 TAXONOMY_VERSION = "0.0.1"
 
 
+# Hosts a throwaway database is allowed to live on. Anything else has to opt
+# in explicitly, because the session fixture below drops the schema.
+_LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "postgres", "db")
+
+
+class DestructiveTestGuard(Exception):
+    """Raised rather than dropping a schema that might not be disposable."""
+
+
+def _is_disposable(dsn: str) -> bool:
+    """Only local hosts are assumed safe to wipe."""
+    host = (urlparse(dsn).hostname or "").lower()
+    return host in _LOCAL_HOSTS
+
+
 def _dsn() -> str:
+    """The database these tests may destroy.
+
+    Prefers TRACKER_TEST_DATABASE_URL. Falls back to DATABASE_URL **only** when
+    it points somewhere local.
+
+    This guard exists because it has already gone wrong: with a production
+    DATABASE_URL in .env, running pytest dropped the live schema. The suite
+    needs a disposable database, so it now refuses to guess which one that is.
+    """
+    test_dsn = os.environ.get("TRACKER_TEST_DATABASE_URL")
+    if test_dsn:
+        return test_dsn
+
     dsn = os.environ.get("DATABASE_URL")
     if not dsn:
-        pytest.skip("DATABASE_URL not set; database tests need a real Postgres")
-    return dsn
+        pytest.skip(
+            "No test database. Set TRACKER_TEST_DATABASE_URL, or run a local "
+            "Postgres and point DATABASE_URL at it."
+        )
+
+    if _is_disposable(dsn) or os.environ.get("TRACKER_ALLOW_DESTRUCTIVE_TESTS") == "1":
+        return dsn
+
+    host = urlparse(dsn).hostname
+    raise DestructiveTestGuard(
+        f"Refusing to run destructive tests against {host!r}. "
+        f"This suite drops and recreates the `public` schema, which would "
+        f"erase everything in that database. "
+        f"Set TRACKER_TEST_DATABASE_URL to a throwaway database, or "
+        f"TRACKER_ALLOW_DESTRUCTIVE_TESTS=1 if you are certain."
+    )
 
 
 @pytest.fixture(scope="session")

@@ -116,6 +116,30 @@ subscribers, and reading mail addressed to you is not circumvention.
 4. In `config/sources.yaml`, set `active: true` on `alb-newsletter` and check
    `options.folder` matches the folder you made.
 
+## Running the tests
+
+The suite **drops and recreates the `public` schema**, so it needs a throwaway
+database, never the one holding your data. It refuses to run against a
+non-local host:
+
+```
+DestructiveTestGuard: Refusing to run destructive tests against
+'ep-xxxx-pooler.ap-southeast-1.aws.neon.tech'.
+```
+
+That guard exists because it has already gone wrong once: with a production
+`DATABASE_URL` in `.env`, `pytest` dropped the live schema.
+
+To run the database tests locally, point them at a disposable Postgres:
+
+```bash
+docker run -d -e POSTGRES_PASSWORD=pg -p 5432:5432 postgres:16
+TRACKER_TEST_DATABASE_URL=postgresql://postgres:pg@localhost/postgres pytest
+```
+
+Without that, the database tests error out and the rest still run. CI uses a
+`localhost` service container, which the guard allows.
+
 ## Without a database
 
 `tracker collect --since 2019-01-01 --fetch-articles --out collected.json`
