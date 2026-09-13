@@ -153,12 +153,25 @@ def run(
                 if fetched % 10 == 0:
                     save_article_cache(cache)
 
+        # Having read the article, the evidence is no longer headline-only.
+        # Scoring it as such penalises a record for evidence we do in fact
+        # hold, and headline_only never auto-accepts — which is what put 94%
+        # of records into the review queue.
+        access = row["source_access"]
+        if body and access == "headline_only":
+            access = "full_public"
+            conn.execute(
+                "UPDATE raw_items SET source_access = 'full_public', "
+                "body_read_at = now() WHERE id = %s",
+                (row["id"],),
+            )
+
         item = RawItem(
             source_slug=row["source_slug"],
             url=row["url"],
             headline=row["headline"],
             published_at=row["published_at"],
-            access_level=row["source_access"],
+            access_level=access,
             body_text=body,
         )
         try:

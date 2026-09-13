@@ -273,6 +273,40 @@ def firm_pair(headline: str, gazetteer: FirmGazetteer) -> tuple[str | None, str 
     return destination, origin
 
 
+# "joins the corporate team", "will lead the disputes practice", "a partner in
+# the firm's energy group". The body states the practice far more often than
+# the headline does.
+_BODY_PRACTICE = re.compile(
+    r"\b(?:in|to|of|joins?|joining|leads?|leading|heads?|heading|within)\s+"
+    r"(?:the\s+|its\s+|their\s+|a\s+|an\s+)?(?:firm['’]?s\s+)?"
+    r"(?P<practice>[\w&,'’\- ]{3,60}?)\s+"
+    r"(?:practice\s+group|practice|team|group|department|division)\b",
+    re.IGNORECASE,
+)
+
+
+def practice_for(person: str, body: str) -> str | None:
+    """The practice area stated near a named person, or None.
+
+    Scoped to a sentence mentioning the person for the same reason origin_for
+    is: a practice named elsewhere in the article belongs to someone else.
+    """
+    from tracker.extract.roles import clean_practice
+
+    parts = person.split()
+    surname = (parts[-1] if parts else person).lower()
+    needle = person.lower()
+    for sentence in _SENTENCE_SPLIT.split(body):
+        lowered = sentence.lower()
+        if needle not in lowered and surname not in lowered:
+            continue
+        for match in _BODY_PRACTICE.finditer(sentence):
+            cleaned = clean_practice(match.group("practice"))
+            if cleaned:
+                return cleaned
+    return None
+
+
 def origin_for(person: str, body: str, gazetteer: FirmGazetteer) -> str | None:
     """The firm a named person came from, read out of the body.
 

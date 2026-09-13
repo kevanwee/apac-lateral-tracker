@@ -385,6 +385,16 @@ class RuleExtractor:
                     quality="recovered",
                     excerpt=_excerpt(body, hit.person_start, hit.person_end),
                 )
+            practice = body_rules.practice_for(person, body)
+            if practice:
+                at = body.find(practice)
+                if at >= 0:
+                    fields["practice_text"] = VerifiedField(
+                        name="practice_text", value=practice,
+                        span_start=offset + at, span_end=offset + at + len(practice),
+                        quality="exact",
+                        excerpt=_excerpt(body, at, at + len(practice)),
+                    )
             if hit.title:
                 fields["title_to"] = VerifiedField(
                     name="title_to", value=hit.title,
@@ -555,10 +565,25 @@ class RuleExtractor:
         is going far more often than where they came from, so without this the
         firm-to-firm flow matrix is empty by construction.
         """
+        person = move.value("person_name")
+
+        # The body states a practice far more often than a headline does.
+        if "practice_text" not in move.fields and item.body_text and person:
+            found = body_rules.practice_for(person, item.body_text)
+            if found:
+                at = item.body_text.find(found)
+                offset = len(headline) + 2
+                if at >= 0:
+                    move.fields["practice_text"] = VerifiedField(
+                        name="practice_text", value=found,
+                        span_start=offset + at, span_end=offset + at + len(found),
+                        quality="exact",
+                        excerpt=_excerpt(item.body_text, at, at + len(found)),
+                    )
+
         if "from_firm" in move.fields:
             return
 
-        person = move.value("person_name")
         to_firm = move.value("to_firm")
         origin = None
 

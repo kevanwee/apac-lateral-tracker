@@ -100,7 +100,7 @@ class RoleParts:
 _AND_ARTICLE = re.compile(r"\s+and\s+(?:a|an|the|its)\s+.*$", re.IGNORECASE)
 
 
-def _clean_practice(raw: str) -> str | None:
+def clean_practice(raw: str) -> str | None:
     text = _AND_ARTICLE.sub("", raw).strip(" ,;-–—").strip()
     text = re.sub(r"^(?:the|its|a|an|their|new|newest)\s+", "", text, flags=re.IGNORECASE)
     if not text or len(text) < 3:
@@ -139,7 +139,7 @@ def parse(phrase: str | None, places: PlaceGazetteer | None = None) -> RoleParts
     # Prefer the bounded form; it delimits the practice on both sides.
     for pattern in (PRACTICE_BOUNDED, PRACTICE_TRAILING):
         for match in pattern.finditer(text):
-            candidate = _clean_practice(match.group("practice"))
+            candidate = clean_practice(match.group("practice"))
             if candidate and (not title or candidate.lower() not in title.lower()):
                 practice = candidate
                 break
