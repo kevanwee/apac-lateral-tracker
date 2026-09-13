@@ -73,6 +73,39 @@ sources:
       contained no partner movement at all. Movement coverage is reached
       through the sitemap source below.
 
+  - slug: law-com-international
+    name: Law.com International (ALM)
+    base_url: https://www.law.com
+    feed_url: https://www.law.com/international-edition/feed/
+    access_type: feed
+    adapter: feed
+    reliability_tier: 2
+    access_level: summary
+    jurisdiction_focus: [GB, US, SG, HK, CN, AU, AE]
+    poll_interval_hours: 6
+    terms_url: https://www.law.com/robots.txt
+    terms_note: >-
+      robots.txt declares `Allow: /` with `Crawl-delay: 1` for all agents, and
+      publishes sitemaps. Our 10s floor is longer than their declared delay.
+      Checked 2026-09-13.
+    notes: >-
+      Named in the brief. Strong movement coverage with names in the headline:
+      "Cravath Recruits 6 Weil Partners", "Mike Aiello, Weil Corporate Chair,
+      Plans Exit for Cravath".
+
+  - slug: law-com-american-lawyer
+    name: The American Lawyer (ALM)
+    base_url: https://www.law.com
+    feed_url: https://www.law.com/americanlawyer/feed/
+    access_type: feed
+    adapter: feed
+    reliability_tier: 2
+    access_level: summary
+    jurisdiction_focus: [US, GB]
+    poll_interval_hours: 6
+    terms_url: https://www.law.com/robots.txt
+    terms_note: Same robots policy as Law.com International. Checked 2026-09-13.
+
   # ---------------------------------------------------------------------
   # Archive enumeration — historical backfill only
   # ---------------------------------------------------------------------

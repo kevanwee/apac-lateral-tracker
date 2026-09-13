@@ -371,6 +371,113 @@ firms:
     hq: NZ
     aliases: []
 
+  # --- Australia, added from the first collection run -------------------
+  # Every firm here appeared in a real gate-passed headline that the rules had
+  # to abstain on because the gazetteer did not know the name.
+  - name: Piper Alderman
+    type: regional
+    hq: AU
+    aliases: []
+  - name: Hamilton Locke
+    type: regional
+    hq: AU
+    aliases: []
+  - name: Slater and Gordon
+    type: regional
+    hq: AU
+    aliases: [Slater & Gordon, Slater Gordon]
+  - name: Wotton Kearney
+    type: regional
+    hq: AU
+    aliases: [Wotton + Kearney]
+  - name: Keypoint Law
+    type: regional
+    hq: AU
+    aliases: [Keypoint]
+  - name: TurksLegal
+    type: regional
+    hq: AU
+    aliases: [Turks Legal]
+  - name: Brown Wright Stein
+    type: local
+    hq: AU
+    aliases: []
+  - name: Barry Nilsson
+    type: regional
+    hq: AU
+    aliases: [Barry.Nilsson.]
+  - name: Carroll & O'Dea
+    type: local
+    hq: AU
+    aliases: [Carroll O'Dea]
+  - name: Macpherson Kelley
+    type: regional
+    hq: AU
+    aliases: []
+  - name: Gadens
+    type: regional
+    hq: AU
+    aliases: []
+  - name: Hicksons
+    type: local
+    hq: AU
+    aliases: [Hicksons Lawyers]
+  - name: Kennedys Australia
+    type: local
+    hq: AU
+    aliases: []
+  - name: McCabes
+    type: local
+    hq: AU
+    aliases: [McCabe Curwood]
+  - name: Bird & Bird Australia
+    type: local
+    hq: AU
+    aliases: []
+  - name: Norton Rose Fulbright Australia
+    type: local
+    hq: AU
+    aliases: [NRF Australia]
+  - name: HNT Legal
+    type: local
+    hq: AU
+    aliases: []
+  - name: Coleman Greig
+    type: local
+    hq: AU
+    aliases: [Coleman Greig Lawyers]
+  - name: Meridian Lawyers
+    type: regional
+    hq: AU
+    aliases: []
+  - name: Bartier Perry Lawyers
+    type: local
+    hq: AU
+    aliases: []
+
+  # --- US / UK, added from the first collection run ---------------------
+  - name: Jones Day
+    type: global
+    aliases: []
+  - name: Cravath
+    type: global
+    aliases: [Cravath Swaine & Moore]
+  - name: A&O Shearman Australia
+    type: local
+    hq: AU
+    aliases: []
+  - name: Travers Smith LLP
+    type: global
+    aliases: []
+  - name: Squire Patton Boggs Australia
+    type: local
+    hq: AU
+    aliases: []
+  - name: Hogan Lovells Australia
+    type: local
+    hq: AU
+    aliases: []
+
   # --- Korea / Japan / India -------------------------------------------
   - name: Kim & Chang
     type: regional
