@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Migrations and invariants
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tracker_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Local throwaway database. Real credentials live in repository secrets
+      # and never appear in a workflow file.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tracker_test
+      TRACKER_USER_AGENT: "apac-lateral-tracker-ci/0.1 (contact: kevanwee@gmail.com)"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check tracker tests
+
+      - name: Apply migrations and run the invariant suite
+        run: pytest -q
+
+      - name: Migrations are re-runnable against an already-migrated database
+        run: |
+          tracker db migrate
+          tracker db status
