@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Secrets — never commit. See .env.example for the required keys.
+.env
+.env.*
+!.env.example
+*.pem
+
+# Node / Next.js (Phase 5)
+node_modules/
+.next/
+out/
+.vercel/
+
+# Local scratch
+scratch/
+*.log
