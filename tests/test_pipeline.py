@@ -368,3 +368,60 @@ def test_the_dataset_has_no_invariant_violations_after_a_run(synced):
     insert_item(synced, make_item())
     extract_once(synced, text_by_url={"https://example.test/scott-tan": BODY})
     assert synced.execute("SELECT * FROM invariant_violations").fetchall() == []
+
+
+# ---------------------------------------------------------------------------
+# Firm gazetteer seeding
+# ---------------------------------------------------------------------------
+
+
+def test_seeding_firms_creates_them_with_their_aliases(clean_conn):
+    firms, aliases = ingest_stage.sync_firms(clean_conn)
+    assert firms > 100
+    assert aliases > 100
+
+    row = clean_conn.execute(
+        "SELECT firm_type FROM firms WHERE canonical_name = 'Herbert Smith Freehills Kramer'"
+    ).fetchone()
+    assert row["firm_type"] == "global"
+
+    alias = clean_conn.execute(
+        "SELECT f.canonical_name FROM firm_aliases a "
+        "JOIN firms f ON f.id = a.firm_id WHERE lower(a.alias) = 'hsf'"
+    ).fetchone()
+    assert alias["canonical_name"] == "Herbert Smith Freehills Kramer"
+
+
+def test_the_big_four_are_not_typed_as_law_firms(clean_conn):
+    """Typing Deloitte `global` would corrupt the firm-to-firm flow matrix."""
+    ingest_stage.sync_firms(clean_conn)
+    for name in ("Deloitte", "PwC", "EY", "KPMG"):
+        row = clean_conn.execute(
+            "SELECT firm_type FROM firms WHERE canonical_name = %s", (name,)
+        ).fetchone()
+        assert row["firm_type"] == "other", name
+
+
+def test_seeding_firms_is_idempotent(clean_conn):
+    ingest_stage.sync_firms(clean_conn)
+    before = clean_conn.execute("SELECT count(*) AS n FROM firms").fetchone()["n"]
+    ingest_stage.sync_firms(clean_conn)
+    after = clean_conn.execute("SELECT count(*) AS n FROM firms").fetchone()["n"]
+    assert before == after
+
+
+def test_a_seeded_firm_is_resolved_instead_of_being_recreated(clean_conn):
+    """This is what stops every move landing in the review queue."""
+    ingest_stage.sync_firms(clean_conn)
+    before = clean_conn.execute("SELECT count(*) AS n FROM firms").fetchone()["n"]
+
+    firm_id, is_new = extract_stage._resolve_firm(clean_conn, "Drew & Napier")
+    assert not is_new
+    assert firm_id is not None
+
+    via_alias, is_new = extract_stage._resolve_firm(clean_conn, "HSF")
+    assert not is_new
+    assert via_alias is not None
+
+    after = clean_conn.execute("SELECT count(*) AS n FROM firms").fetchone()["n"]
+    assert after == before

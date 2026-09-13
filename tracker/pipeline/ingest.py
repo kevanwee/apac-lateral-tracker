@@ -12,6 +12,7 @@ from datetime import datetime
 
 import psycopg
 
+from tracker.firms import FirmGazetteer
 from tracker.gate import GATE_VERSION, evaluate
 from tracker.net.client import PoliteClient, RobotsDisallowed
 from tracker.pipeline.runs import RunRecorder
@@ -20,6 +21,57 @@ from tracker.sources.base import RawItem
 from tracker.sources.registry import BACKFILL_ADAPTERS, RegisteredSource
 
 log = logging.getLogger(__name__)
+
+
+def sync_firms(conn: psycopg.Connection) -> tuple[int, int]:
+    """Seed firms and their aliases from config/firms.yaml.
+
+    Worth doing before any extraction: a firm the database does not know gets
+    created as `other` and its move routed to review, so an unseeded database
+    sends effectively everything to a human. Seeding the gazetteer is what
+    makes the review queue converge on the items that actually need judgement.
+    """
+    gazetteer = FirmGazetteer.load()
+    firms = aliases = 0
+
+    for entry in gazetteer.entries:
+        row = conn.execute(
+            """
+            INSERT INTO firms (canonical_name, firm_type, hq_jurisdiction)
+            VALUES (%s, %s, %s)
+            ON CONFLICT ((lower(btrim(canonical_name)))) DO UPDATE SET
+                firm_type = EXCLUDED.firm_type,
+                hq_jurisdiction = coalesce(
+                    EXCLUDED.hq_jurisdiction, firms.hq_jurisdiction
+                )
+            RETURNING id
+            """,
+            (entry.canonical_name, entry.firm_type, entry.hq_jurisdiction),
+        ).fetchone()
+        firms += 1
+
+        for alias in entry.aliases:
+            conn.execute(
+                """
+                INSERT INTO firm_aliases (firm_id, alias, alias_type, provenance)
+                VALUES (%s, %s, %s, 'config/firms.yaml')
+                ON CONFLICT (firm_id, (lower(btrim(alias)))) DO NOTHING
+                """,
+                (row["id"], alias, _alias_type(entry.canonical_name, alias)),
+            )
+            aliases += 1
+
+    conn.commit()
+    return firms, aliases
+
+
+def _alias_type(canonical: str, alias: str) -> str:
+    """Best guess at why an alias exists. Reviewers can correct it."""
+    if len(alias) <= 5 and alias.isupper():
+        return "abbreviation"
+    if any(word in canonical for word in alias.split()[:1]):
+        return "abbreviation"
+    return "legacy_name"
 
 
 def sync_sources(conn: psycopg.Connection) -> tuple[int, int]:

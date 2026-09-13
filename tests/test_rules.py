@@ -1,0 +1,260 @@
+"""Rule-based extraction.
+
+Every headline in the "must abstain" set produced a wrong record at some point
+during development. They are kept as regressions because the whole value of
+this extractor is that it says nothing when it is unsure — a template that
+starts guessing is worse than no template at all.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+import pytest
+
+from tracker.extract.rules import CascadingExtractor, RuleExtractor
+from tracker.firms import FirmGazetteer, normalise
+from tracker.sources.base import RawItem
+
+GAZETTEER = FirmGazetteer.load()
+
+
+def item(headline: str, *, access: str = "headline_only", body: str | None = None) -> RawItem:
+    return RawItem(
+        source_slug="test",
+        url=f"https://example.test/{abs(hash(headline))}",
+        headline=headline,
+        published_at=datetime(2026, 1, 1, tzinfo=UTC),
+        access_level=access,
+        body_text=body,
+    )
+
+
+def extract(headline: str, *, tier: int = 2, **kw):
+    return RuleExtractor(gazetteer=GAZETTEER).extract(
+        item(headline, **kw), reliability_tier=tier
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gazetteer
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("surface", "canonical"),
+    [
+        ("Herbert Smith Freehills", "Herbert Smith Freehills Kramer"),
+        ("herbert smith freehills", "Herbert Smith Freehills Kramer"),
+        ("HSF", "Herbert Smith Freehills Kramer"),
+        ("dla pipers", "DLA Piper"),
+        ("minterellison", "MinterEllison"),
+        ("Minter Ellison", "MinterEllison"),
+        ("drew and napier", "Drew & Napier"),
+        ("Drew & Napier", "Drew & Napier"),
+        ("AHP", "Assegaf Hamzah & Partners"),
+    ],
+)
+def test_the_gazetteer_resolves_real_surface_forms(surface, canonical):
+    """Slugs lose capitalisation and ampersands; aliases carry the rest."""
+    assert GAZETTEER.resolve(surface) == canonical
+
+
+def test_an_unknown_firm_resolves_to_nothing_rather_than_a_guess():
+    assert GAZETTEER.resolve("Some Firm That Does Not Exist") is None
+
+
+def test_normalisation_folds_ampersands_and_punctuation():
+    assert normalise("Drew & Napier") == normalise("drew and napier")
+    assert normalise("Clyde & Co.") == normalise("clyde co")
+
+
+def test_a_longer_firm_name_wins_over_a_shorter_prefix():
+    assert GAZETTEER.resolve("Rajah & Tann Singapore") == "Rajah & Tann Singapore"
+    assert GAZETTEER.resolve("Rajah & Tann") == "Rajah & Tann Asia"
+
+
+# ---------------------------------------------------------------------------
+# Records the rules should produce
+# ---------------------------------------------------------------------------
+
+SHOULD_EXTRACT = [
+    (
+        "Herbert smith freehills appoints nick baker as managing partner",
+        "nick baker", "Herbert Smith Freehills Kramer", None,
+    ),
+    (
+        "Jenny thornton rejoins clyde co as managing partner in perth office",
+        "Jenny thornton", "Clyde & Co", None,
+    ),
+    (
+        "Kirkland ellis welcomes laura vartain horn as partner in intellectual "
+        "property practice group",
+        "laura vartain horn", "Kirkland & Ellis", None,
+    ),
+    (
+        "Baker mckenzie appoints oanh nguyen as managing partner in vietnam",
+        "oanh nguyen", "Baker McKenzie", None,
+    ),
+    (
+        "Moray agnew promotes kate cooch to partner in health law group",
+        "kate cooch", "Moray & Agnew", "Moray & Agnew",
+    ),
+    (
+        "Gavin rakoczy joins allens as banking and finance partner",
+        "Gavin rakoczy", "Allens", None,
+    ),
+    (
+        "AHP Welcomes New Intellectual Property Partner Wiku Anindito",
+        "Wiku Anindito", "Assegaf Hamzah & Partners", None,
+    ),
+    (
+        "Scott Tan joins Drew & Napier from Allen & Gledhill",
+        "Scott Tan", "Drew & Napier", "Allen & Gledhill",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("headline", "person", "to_firm", "from_firm"),
+    SHOULD_EXTRACT,
+    ids=[h[:44] for h, *_ in SHOULD_EXTRACT],
+)
+def test_clear_headlines_produce_the_right_record(headline, person, to_firm, from_firm):
+    result = extract(headline)
+    assert result.moves, "expected a record"
+    move = result.moves[0]
+    assert move.value("person_name") == person
+    assert move.value("to_firm") == to_firm
+    assert move.value("from_firm") == from_firm
+
+
+# ---------------------------------------------------------------------------
+# Headlines the rules must refuse
+# ---------------------------------------------------------------------------
+
+MUST_ABSTAIN = [
+    # Each of these produced a wrong record during development.
+    ("Qic gc joins hsf as executive counsel", "a role abbreviation read as a name"),
+    (
+        "Squire patton boggs welcomes funds private equity partner in london",
+        "a prepositional phrase read as a name",
+    ),
+    (
+        "Minterellison promotes even dozen to partner in massive round",
+        "a quantity read as a name",
+    ),
+    # No person is named at all.
+    ("Seven new partners join minterellison", "no individual named"),
+    (
+        "Pinsent Masons adds IP partner duo in Germany from Vossius",
+        "a duo, neither named",
+    ),
+    (
+        "Linklaters lures Wachtell dealmaker to become Americas managing partner",
+        "the person is only in the standfirst",
+    ),
+    # The destination firm is not one we know.
+    (
+        "Jane Doe joins Some Unknown Firm as partner",
+        "an unrecognised firm would have to be guessed",
+    ),
+    # Not movement at all.
+    ("Full federal court rejects ex directors bid for total tools shares", "a case report"),
+    ("Rajah & Tann marks 50 years with donations to two law schools", "not movement"),
+]
+
+
+@pytest.mark.parametrize(
+    ("headline", "reason"), MUST_ABSTAIN, ids=[h[:44] for h, _ in MUST_ABSTAIN]
+)
+def test_ambiguous_headlines_produce_nothing(headline, reason):
+    result = extract(headline)
+    assert not result.moves, f"should have abstained: {reason}"
+
+
+# ---------------------------------------------------------------------------
+# Properties that hold whatever the template
+# ---------------------------------------------------------------------------
+
+
+def test_extraction_is_free():
+    result = extract("Herbert smith freehills appoints nick baker as managing partner")
+    assert result.cost_usd == 0.0
+    assert result.input_tokens == 0
+    assert result.model.startswith("rules/")
+
+
+def test_every_field_carries_a_span_into_the_headline():
+    headline = "Scott Tan joins Drew & Napier from Allen & Gledhill"
+    move = extract(headline).moves[0]
+    for name, field in move.fields.items():
+        assert 0 <= field.span_start < field.span_end <= len(headline), name
+        assert field.excerpt
+        assert len(field.excerpt.split()) <= 25, name
+
+
+def test_a_promotion_keeps_both_ends_at_the_same_firm():
+    """The schema rejects a promotion across two firms."""
+    move = extract("Moray agnew promotes kate cooch to partner in health law group").moves[0]
+    assert move.value("move_type") == "promotion"
+    assert move.value("from_firm") == move.value("to_firm")
+
+
+def test_rule_records_still_need_review_when_the_evidence_is_thin():
+    """A headline-only record never auto-accepts, however clean the parse."""
+    move = extract(
+        "Herbert smith freehills appoints nick baker as managing partner",
+        access="headline_only",
+    ).moves[0]
+    assert move.needs_review
+
+
+def test_results_are_deterministic():
+    headline = "Baker mckenzie appoints oanh nguyen as managing partner in vietnam"
+    first, second = extract(headline), extract(headline)
+    assert first.moves[0].value("person_name") == second.moves[0].value("person_name")
+    assert first.moves[0].confidence.total == second.moves[0].confidence.total
+
+
+# ---------------------------------------------------------------------------
+# Cascade
+# ---------------------------------------------------------------------------
+
+
+class SpyFallback:
+    model = "spy"
+
+    def __init__(self):
+        self.calls = 0
+
+    def extract(self, item, *, reliability_tier):
+        from tracker.extract.extractor import ExtractionResult
+
+        self.calls += 1
+        return ExtractionResult(
+            item=item.without_text(), is_movement=False,
+            not_movement_reason="spy", model="spy",
+        )
+
+
+def test_the_model_is_never_asked_about_an_item_the_rules_answered():
+    spy = SpyFallback()
+    cascade = CascadingExtractor(
+        rules=RuleExtractor(gazetteer=GAZETTEER), fallback=spy
+    )
+    result = cascade.extract(
+        item("Herbert smith freehills appoints nick baker as managing partner"),
+        reliability_tier=2,
+    )
+    assert result.moves
+    assert spy.calls == 0
+
+
+def test_the_model_is_asked_about_everything_the_rules_declined():
+    spy = SpyFallback()
+    cascade = CascadingExtractor(
+        rules=RuleExtractor(gazetteer=GAZETTEER), fallback=spy
+    )
+    cascade.extract(item("Seven new partners join minterellison"), reliability_tier=2)
+    assert spy.calls == 1

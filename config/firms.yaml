@@ -1,0 +1,450 @@
+# Firm gazetteer.
+#
+# Two jobs:
+#   1. Seeds the `firms` and `firm_aliases` tables, so extraction resolves a
+#      firm instead of creating a new row and routing the move to review.
+#   2. Lets the rule-based extractor recognise firm names in text that has lost
+#      its capitalisation — a headline rebuilt from a URL slug reads
+#      "herbert smith freehills appoints nick baker", and without a gazetteer
+#      there is nothing to tell a firm from a person.
+#
+# `aliases` carries what the trade press actually writes: legacy merger names,
+# shorthand, verein member entities, and local practising entities. Grow it
+# from review queue resolutions — that is what makes the system cheaper and
+# more deterministic over time.
+#
+# type: global | regional | local | boutique | in_house | chambers | government | other
+# Note `other` for the Big Four: they compete for partners but are not law
+# firms, and typing them `global` corrupts the firm-to-firm flow matrix.
+
+version: 1
+
+firms:
+  # --- Global -----------------------------------------------------------
+  - name: Allen & Overy Shearman
+    type: global
+    aliases: [A&O Shearman, Allen & Overy, A&O, Shearman & Sterling, Shearman]
+  - name: Baker McKenzie
+    type: global
+    aliases: [Baker & McKenzie, Bakers, Baker McKenzie Wong & Leow]
+  - name: Clifford Chance
+    type: global
+    aliases: [CC]
+  - name: Linklaters
+    type: global
+    aliases: [Linklaters Singapore Pte Ltd]
+  - name: Freshfields
+    type: global
+    aliases: [Freshfields Bruckhaus Deringer]
+  - name: Herbert Smith Freehills Kramer
+    type: global
+    aliases: [Herbert Smith Freehills, HSF, HSF Kramer, Freehills, Herbert Smith]
+  - name: Hogan Lovells
+    type: global
+    aliases: [Hogan & Hartson, Lovells]
+  - name: DLA Piper
+    type: global
+    aliases: [DLA, DLA Pipers]
+  - name: Norton Rose Fulbright
+    type: global
+    aliases: [Norton Rose, NRF, Fulbright & Jaworski]
+  - name: Dentons
+    type: global
+    aliases: [Dentons Rodyk, Dentons Rodyk & Davidson, Salans, SNR Denton]
+  - name: White & Case
+    type: global
+    aliases: []
+  - name: Latham & Watkins
+    type: global
+    aliases: [Latham]
+  - name: Kirkland & Ellis
+    type: global
+    aliases: [Kirkland]
+  - name: Skadden
+    type: global
+    aliases: [Skadden Arps, Skadden Arps Slate Meagher & Flom]
+  - name: Sidley Austin
+    type: global
+    aliases: [Sidley]
+  - name: Morrison Foerster
+    type: global
+    aliases: [MoFo, Morrison & Foerster]
+  - name: Gibson Dunn
+    type: global
+    aliases: [Gibson Dunn & Crutcher]
+  - name: Ashurst
+    type: global
+    aliases: [Blake Dawson, Ashurst Australia]
+  - name: King & Wood Mallesons
+    type: global
+    aliases: [KWM, Mallesons, Mallesons Stephen Jaques, King & Wood]
+  - name: Clyde & Co
+    type: global
+    aliases: [Clydes]
+  - name: Pinsent Masons
+    type: global
+    aliases: [Pinsents, MPillay]
+  - name: Simmons & Simmons
+    type: global
+    aliases: [Simmons]
+  - name: Eversheds Sutherland
+    type: global
+    aliases: [Eversheds]
+  - name: Mayer Brown
+    type: global
+    aliases: [Mayer Brown JSM, Johnson Stokes & Master, JSM]
+  - name: Reed Smith
+    type: global
+    aliases: [Richards Butler]
+  - name: Stephenson Harwood
+    type: global
+    aliases: []
+  - name: Withers
+    type: global
+    aliases: [Withersworldwide, Withers KhattarWong]
+  - name: HFW
+    type: global
+    aliases: [Holman Fenwick Willan]
+  - name: Squire Patton Boggs
+    type: global
+    aliases: [Squire Sanders, Patton Boggs]
+  - name: Bird & Bird
+    type: global
+    aliases: [Bird Bird, Twobirds]
+  - name: Simpson Thacher
+    type: global
+    aliases: [Simpson Thacher & Bartlett]
+  - name: Weil
+    type: global
+    aliases: [Weil Gotshal, Weil Gotshal & Manges]
+  - name: Dechert
+    type: global
+    aliases: []
+  - name: Orrick
+    type: global
+    aliases: [Orrick Herrington & Sutcliffe]
+  - name: Ropes & Gray
+    type: global
+    aliases: []
+  - name: Milbank
+    type: global
+    aliases: [Milbank Tweed]
+  - name: Debevoise & Plimpton
+    type: global
+    aliases: [Debevoise]
+  - name: Paul Weiss
+    type: global
+    aliases: [Paul Weiss Rifkind Wharton & Garrison]
+  - name: Cleary Gottlieb
+    type: global
+    aliases: [Cleary Gottlieb Steen & Hamilton, Cleary]
+  - name: Davis Polk
+    type: global
+    aliases: [Davis Polk & Wardwell]
+  - name: Sullivan & Cromwell
+    type: global
+    aliases: [S&C]
+  - name: Wachtell
+    type: global
+    aliases: [Wachtell Lipton, Wachtell Lipton Rosen & Katz]
+  - name: Quinn Emanuel
+    type: global
+    aliases: [Quinn Emanuel Urquhart & Sullivan]
+  - name: Pillsbury
+    type: global
+    aliases: [Pillsbury Winthrop Shaw Pittman]
+  - name: Ogletree Deakins
+    type: global
+    aliases: []
+  - name: Littler
+    type: global
+    aliases: [Littler Mendelson]
+  - name: Travers Smith
+    type: global
+    aliases: []
+  - name: Mishcon de Reya
+    type: global
+    aliases: [Mishcon]
+  - name: Osborne Clarke
+    type: global
+    aliases: []
+  - name: Gowling WLG
+    type: global
+    aliases: [Gowlings, Wragge Lawrence Graham]
+  - name: Addleshaw Goddard
+    type: global
+    aliases: []
+  - name: Watson Farley & Williams
+    type: global
+    aliases: [WFW]
+  - name: Ince
+    type: global
+    aliases: [Ince & Co]
+  - name: Kennedys
+    type: global
+    aliases: []
+  - name: DWF
+    type: global
+    aliases: []
+  - name: RPC
+    type: global
+    aliases: [Reynolds Porter Chamberlain]
+  - name: Signature Litigation
+    type: boutique
+    aliases: []
+
+  # --- Singapore --------------------------------------------------------
+  - name: Allen & Gledhill
+    type: regional
+    hq: SG
+    aliases: [A&G]
+  - name: Rajah & Tann Asia
+    type: regional
+    hq: SG
+    aliases: [Rajah & Tann, R&T, Rajah and Tann]
+  - name: Rajah & Tann Singapore
+    type: local
+    hq: SG
+    aliases: [R&T Singapore]
+  - name: Rajah & Tann (Thailand) Limited
+    type: local
+    hq: TH
+    aliases: [Rajah & Tann Thailand, R&T Thailand, RT Thailand]
+  - name: Assegaf Hamzah & Partners
+    type: local
+    hq: ID
+    aliases: [AHP]
+  - name: Christopher & Lee Ong
+    type: local
+    hq: MY
+    aliases: [CLO]
+  - name: WongPartnership
+    type: regional
+    hq: SG
+    aliases: [Wong Partnership, WP]
+  - name: Drew & Napier
+    type: regional
+    hq: SG
+    aliases: [Drew and Napier, D&N]
+  - name: Shook Lin & Bok
+    type: local
+    hq: SG
+    aliases: []
+  - name: TSMP Law Corporation
+    type: boutique
+    hq: SG
+    aliases: [TSMP]
+  - name: Harry Elias Partnership
+    type: local
+    hq: SG
+    aliases: []
+  - name: Bird & Bird ATMD
+    type: local
+    hq: SG
+    aliases: [ATMD Bird & Bird]
+  - name: Oon & Bazul
+    type: boutique
+    hq: SG
+    aliases: []
+
+  # --- Hong Kong / China ------------------------------------------------
+  - name: Deacons
+    type: local
+    hq: HK
+    aliases: []
+  - name: Fangda Partners
+    type: regional
+    hq: CN
+    aliases: [Fangda]
+  - name: Han Kun Law Offices
+    type: regional
+    hq: CN
+    aliases: [Han Kun]
+  - name: JunHe
+    type: regional
+    hq: CN
+    aliases: [Jun He]
+  - name: Zhong Lun
+    type: regional
+    hq: CN
+    aliases: [Zhong Lun Law Firm]
+  - name: Haiwen & Partners
+    type: regional
+    hq: CN
+    aliases: [Haiwen]
+
+  # --- Australia --------------------------------------------------------
+  - name: Allens
+    type: regional
+    hq: AU
+    aliases: [Allens Linklaters, Allens Arthur Robinson]
+  - name: Gilbert + Tobin
+    type: regional
+    hq: AU
+    aliases: [Gilbert and Tobin, G+T, Gilbert Tobin]
+  - name: MinterEllison
+    type: regional
+    hq: AU
+    aliases: [Minter Ellison, Minters]
+  - name: Corrs Chambers Westgarth
+    type: regional
+    hq: AU
+    aliases: [Corrs]
+  - name: Clayton Utz
+    type: regional
+    hq: AU
+    aliases: [Claytons]
+  - name: Herbert Smith Freehills Australia
+    type: local
+    hq: AU
+    aliases: []
+  - name: HWL Ebsworth
+    type: regional
+    hq: AU
+    aliases: [HWLE]
+  - name: Holding Redlich
+    type: regional
+    hq: AU
+    aliases: []
+  - name: Colin Biggers & Paisley
+    type: regional
+    hq: AU
+    aliases: [Colin Biggers Paisley, CBP]
+  - name: Bartier Perry
+    type: local
+    hq: AU
+    aliases: []
+  - name: Moray & Agnew
+    type: regional
+    hq: AU
+    aliases: [Moray Agnew]
+  - name: Maddocks
+    type: regional
+    hq: AU
+    aliases: []
+  - name: Thomson Geer
+    type: regional
+    hq: AU
+    aliases: [Thomsons Lawyers]
+  - name: Johnson Winter Slattery
+    type: regional
+    hq: AU
+    aliases: [JWS]
+  - name: Lander & Rogers
+    type: regional
+    hq: AU
+    aliases: [Landers]
+  - name: McCullough Robertson
+    type: regional
+    hq: AU
+    aliases: []
+  - name: Hall & Wilcox
+    type: regional
+    hq: AU
+    aliases: []
+  - name: Mills Oakley
+    type: regional
+    hq: AU
+    aliases: []
+  - name: Sparke Helmore
+    type: regional
+    hq: AU
+    aliases: []
+  - name: Arnold Bloch Leibler
+    type: regional
+    hq: AU
+    aliases: [ABL]
+  - name: Anthony Harper
+    type: local
+    hq: NZ
+    aliases: []
+  - name: Russell McVeagh
+    type: regional
+    hq: NZ
+    aliases: []
+  - name: Chapman Tripp
+    type: regional
+    hq: NZ
+    aliases: []
+  - name: Bell Gully
+    type: regional
+    hq: NZ
+    aliases: []
+
+  # --- Korea / Japan / India -------------------------------------------
+  - name: Kim & Chang
+    type: regional
+    hq: KR
+    aliases: [Kim and Chang]
+  - name: Lee & Ko
+    type: regional
+    hq: KR
+    aliases: [Lee and Ko]
+  - name: Bae Kim & Lee
+    type: regional
+    hq: KR
+    aliases: [BKL]
+  - name: Nishimura & Asahi
+    type: regional
+    hq: JP
+    aliases: [Nishimura Asahi]
+  - name: Mori Hamada & Matsumoto
+    type: regional
+    hq: JP
+    aliases: [Mori Hamada]
+  - name: Anderson Mori & Tomotsune
+    type: regional
+    hq: JP
+    aliases: [Anderson Mori]
+  - name: Nagashima Ohno & Tsunematsu
+    type: regional
+    hq: JP
+    aliases: [Nagashima Ohno]
+  - name: Cyril Amarchand Mangaldas
+    type: regional
+    hq: IN
+    aliases: [Cyril Amarchand]
+  - name: Shardul Amarchand Mangaldas
+    type: regional
+    hq: IN
+    aliases: [Shardul Amarchand]
+  - name: Khaitan & Co
+    type: regional
+    hq: IN
+    aliases: [Khaitan]
+  - name: AZB & Partners
+    type: regional
+    hq: IN
+    aliases: [AZB]
+  - name: Trilegal
+    type: regional
+    hq: IN
+    aliases: []
+
+  # --- Not law firms, but they compete for partners ---------------------
+  - name: Deloitte
+    type: other
+    aliases: [Deloitte Legal]
+  - name: PwC
+    type: other
+    aliases: [PricewaterhouseCoopers, PwC Legal]
+  - name: EY
+    type: other
+    aliases: [Ernst & Young, EY Law]
+  - name: KPMG
+    type: other
+    aliases: [KPMG Law]
+
+  # --- Chambers ---------------------------------------------------------
+  - name: Twenty Essex
+    type: chambers
+    aliases: [20 Essex Street]
+  - name: Essex Court Chambers
+    type: chambers
+    aliases: []
+  - name: Fountain Court Chambers
+    type: chambers
+    aliases: [Fountain Court]
+  - name: Maxwell Chambers
+    type: chambers
+    aliases: []

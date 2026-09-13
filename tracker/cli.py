@@ -109,6 +109,25 @@ def sources_sync() -> None:
     click.echo(f"{upserted} source(s) synced, {deactivated} deactivated")
 
 
+@cli.command("firms")
+@click.option("--sync", "do_sync", is_flag=True, help="Seed firms and aliases from config.")
+def firms_cmd(do_sync: bool) -> None:
+    """Show or seed the firm gazetteer."""
+    from tracker.firms import FirmGazetteer
+
+    gazetteer = FirmGazetteer.load()
+    if not do_sync:
+        click.echo(f"{len(gazetteer)} firms, "
+                   f"{sum(len(e.aliases) for e in gazetteer.entries)} aliases in config")
+        return
+
+    from tracker.pipeline import ingest as ingest_stage
+
+    with db.connect(direct=True) as conn:
+        firms, aliases = ingest_stage.sync_firms(conn)
+    click.echo(f"seeded {firms} firm(s) and {aliases} alias(es)")
+
+
 @sources_group.command("list")
 def sources_list() -> None:
     """Show the register, including sources we are not collecting."""
@@ -151,6 +170,45 @@ def ingest_cmd(since, only: str | None) -> None:
             f"gate rejected {recorder.items_gate_rejected}, "
             f"errors {recorder.errors}"
         )
+
+
+def _build_extractor(kind: str):
+    """rules = free and deterministic; llm = costs money; auto = rules first.
+
+    Returns (extractor, description).
+    """
+    from tracker.config import Config
+    from tracker.extract.extractor import CostLedger, Extractor
+    from tracker.extract.rules import RuleExtractor
+    from tracker.firms import FirmGazetteer
+
+    if kind == "rules":
+        return RuleExtractor(gazetteer=FirmGazetteer.load()), "rules (free)"
+
+    cfg = Config.load()
+    ledger = CostLedger(ceiling_usd=cfg.llm_cost_ceiling_usd_per_run)
+    llm = Extractor(model=cfg.extraction_model, ledger=ledger)
+    if kind == "llm":
+        return llm, f"{cfg.extraction_model} (ceiling ${ledger.ceiling_usd:.2f})"
+
+    from tracker.extract.rules import CascadingExtractor
+
+    return (
+        CascadingExtractor(
+            rules=RuleExtractor(gazetteer=FirmGazetteer.load()), fallback=llm
+        ),
+        f"rules, falling back to {cfg.extraction_model}",
+    )
+
+
+extractor_option = click.option(
+    "--extractor",
+    type=click.Choice(["rules", "llm", "auto"]),
+    default="rules",
+    show_default=True,
+    help="rules costs nothing and abstains often; llm costs money; "
+         "auto tries rules first and only pays for what they miss.",
+)
 
 
 @cli.command("backfill")
@@ -196,7 +254,8 @@ def backfill_cmd(since, only: str | None) -> None:
 @click.option("--extract/--no-extract", "do_extract", default=True,
               help="Also run extraction over whatever the gate passed.")
 @click.option("--limit", type=int, default=None, help="Cap items extracted this run.")
-def catch_up_cmd(since, do_extract: bool, limit: int | None) -> None:
+@extractor_option
+def catch_up_cmd(since, do_extract: bool, limit: int | None, extractor: str) -> None:
     """Bring the record up to date. Run this every few months.
 
     Live feeds plus source archives, then extraction. Every stage is
@@ -204,8 +263,7 @@ def catch_up_cmd(since, do_extract: bool, limit: int | None) -> None:
     """
     from datetime import UTC, timedelta
 
-    from tracker.config import Config
-    from tracker.extract.extractor import CostCeilingExceeded, CostLedger, Extractor
+    from tracker.extract.extractor import CostCeilingExceeded
     from tracker.net.client import PoliteClient
     from tracker.pipeline import extract as extract_stage
     from tracker.pipeline import ingest as ingest_stage
@@ -237,13 +295,14 @@ def catch_up_cmd(since, do_extract: bool, limit: int | None) -> None:
             click.echo("  extraction skipped (--no-extract)")
             return
 
-        cfg = Config.load()
-        ledger = CostLedger(ceiling_usd=cfg.llm_cost_ceiling_usd_per_run)
-        extractor = Extractor(model=cfg.extraction_model, ledger=ledger)
-        with runs.record(conn, "extract", params={"limit": limit}) as rec:
+        engine, description = _build_extractor(extractor)
+        click.echo(f"  extracting with {description}")
+        with runs.record(
+            conn, "extract", params={"limit": limit, "extractor": extractor}
+        ) as rec:
             try:
                 extract_stage.run(
-                    conn, rec, extractor=extractor, client=client, limit=limit
+                    conn, rec, extractor=engine, client=client, limit=limit
                 )
             except CostCeilingExceeded as exc:
                 rec.fail("extract", str(exc))
@@ -256,23 +315,24 @@ def catch_up_cmd(since, do_extract: bool, limit: int | None) -> None:
 
 @cli.command("extract")
 @click.option("--limit", type=int, default=None, help="Stop after this many items.")
-def extract_cmd(limit: int | None) -> None:
+@extractor_option
+def extract_cmd(limit: int | None, extractor: str) -> None:
     """Extract movement records from ingested items."""
-    from tracker.config import Config
-    from tracker.extract.extractor import CostCeilingExceeded, CostLedger, Extractor
+    from tracker.extract.extractor import CostCeilingExceeded
     from tracker.net.client import PoliteClient
     from tracker.pipeline import extract as extract_stage
     from tracker.pipeline import runs
 
-    cfg = Config.load()
-    ledger = CostLedger(ceiling_usd=cfg.llm_cost_ceiling_usd_per_run)
-    extractor = Extractor(model=cfg.extraction_model, ledger=ledger)
+    engine, description = _build_extractor(extractor)
+    click.echo(f"extracting with {description}")
 
     with db.connect(direct=True) as conn, PoliteClient() as client:
-        with runs.record(conn, "extract", params={"limit": limit}) as recorder:
+        with runs.record(
+            conn, "extract", params={"limit": limit, "extractor": extractor}
+        ) as recorder:
             try:
                 extract_stage.run(
-                    conn, recorder, extractor=extractor, client=client, limit=limit
+                    conn, recorder, extractor=engine, client=client, limit=limit
                 )
             except CostCeilingExceeded as exc:
                 # Fail loudly. Never silently process a truncated set.
@@ -281,7 +341,7 @@ def extract_cmd(limit: int | None) -> None:
         click.echo(
             f"created {recorder.moves_created} move(s), "
             f"{recorder.moves_queued_for_review} queued for review, "
-            f"spent ${recorder.llm_cost_usd:.4f} over {ledger.calls} call(s)"
+            f"spent ${recorder.llm_cost_usd:.4f}"
         )
 
 
