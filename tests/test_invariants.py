@@ -227,17 +227,34 @@ def test_poll_interval_cannot_go_below_the_ten_second_floor(conn):
 def test_active_html_source_requires_a_dated_terms_review(conn):
     with pytest.raises(psycopg.errors.CheckViolation):
         conn.execute(
-            "INSERT INTO sources (slug, name, base_url, access_type, reliability_tier, active) "
-            "VALUES ('scrapey', 'Scrapey', 'https://e.test', 'html', 2, true)"
+            "INSERT INTO sources (slug, name, base_url, access_type, adapter, "
+            "reliability_tier, active) "
+            "VALUES ('scrapey', 'Scrapey', 'https://e.test', 'html', 'html', 2, true)"
         )
 
 
 def test_html_source_is_allowed_once_terms_are_reviewed(conn):
     conn.execute(
-        "INSERT INTO sources (slug, name, base_url, access_type, reliability_tier, "
-        "active, html_access_reviewed_at, html_access_reviewed_by) "
-        "VALUES ('okhtml', 'Ok', 'https://e.test', 'html', 2, true, now(), 'kevan')"
+        "INSERT INTO sources (slug, name, base_url, access_type, adapter, "
+        "reliability_tier, active, html_access_reviewed_at, html_access_reviewed_by) "
+        "VALUES ('okhtml', 'Ok', 'https://e.test', 'html', 'html', 2, true, "
+        "now(), 'kevan')"
     )
+
+
+def test_only_feed_adapters_are_required_to_have_a_feed_url(conn):
+    """A sitemap or mailbox source legitimately has no feed of its own."""
+    conn.execute(
+        "INSERT INTO sources (slug, name, base_url, access_type, adapter, "
+        "reliability_tier) "
+        "VALUES ('arch', 'Archive', 'https://e.test', 'feed', 'sitemap', 2)"
+    )
+    with pytest.raises(psycopg.errors.CheckViolation):
+        conn.execute(
+            "INSERT INTO sources (slug, name, base_url, access_type, adapter, "
+            "reliability_tier) "
+            "VALUES ('nofeed', 'No feed', 'https://e.test', 'feed', 'feed', 2)"
+        )
 
 
 def test_tier_one_is_reserved_for_firm_newsrooms(conn):
