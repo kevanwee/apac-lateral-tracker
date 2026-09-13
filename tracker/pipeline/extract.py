@@ -1,14 +1,18 @@
 """The extract stage: raw_items -> people, firms, moves, evidence, review queue.
 
 **Where the text comes from.** Article text is never stored, so a standalone
-extract run has to get it again. It re-reads the source *feed* and matches on
-URL — it does not fetch article pages. That keeps collection inside the same
-feed-only posture the ingest stage has, and avoids raising a fresh terms
-question for every article URL. An item that has rolled out of the feed window
-is extracted from its headline alone, with the confidence penalty that implies.
+extract run has to get it again, in this order:
 
-When ingest and extract run in the same process (`tracker run-all`), the text
-is passed straight through in memory and no refetch happens at all.
+1. In-memory, when ingest and extract run in the same process.
+2. The source *feed*, re-read and matched on URL.
+3. The article page itself — but only for a source whose terms have been
+   reviewed (`sources.html_access_reviewed_at`). That gate is a dated human
+   decision; this stage never turns it on for itself.
+
+Step 3 matters more than it sounds. Most trade press headlines name nobody —
+"Holding Redlich welcomes IP partner" — so without the body there is no record
+to make. An item with no text at any step is extracted from its headline alone,
+with the confidence penalty that implies.
 
 Firm and person resolution here is deliberately minimal — exact and alias
 match only. Fuzzy matching, verein resolution and name normalisation are the
@@ -27,7 +31,7 @@ from tracker import names
 from tracker.extract.extractor import ExtractedMove, Extractor
 from tracker.net.client import PoliteClient, RobotsDisallowed
 from tracker.pipeline.runs import RunRecorder
-from tracker.sources import registry
+from tracker.sources import article, registry
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +40,8 @@ def pending_items(conn: psycopg.Connection, *, limit: int | None = None) -> list
     return conn.execute(
         """
         SELECT r.id, r.url, r.headline, r.published_at, r.source_access,
-               s.slug AS source_slug, s.reliability_tier, s.id AS source_id
+               s.slug AS source_slug, s.reliability_tier, s.id AS source_id,
+               s.html_access_reviewed_at
         FROM raw_items r
         JOIN sources s ON s.id = r.source_id
         WHERE r.processing_state = 'new' AND r.gate_passed
@@ -60,6 +65,17 @@ def feed_text_map(client: PoliteClient, slugs: set[str]) -> dict[str, str]:
         except (RobotsDisallowed, Exception) as exc:  # noqa: BLE001
             log.warning("%s: could not re-read feed for text: %s", source.config.slug, exc)
     return mapping
+
+
+def _article_body(client: PoliteClient, url: str) -> str | None:
+    """Fetch and reduce one article. Never raises; a miss is just less evidence."""
+    try:
+        return article.body_of(client.fetch(url).text)
+    except RobotsDisallowed:
+        return None  # robots said no, which is a valid answer
+    except Exception as exc:  # noqa: BLE001
+        log.info("could not read %s: %s", url, exc)
+        return None
 
 
 def fingerprint(raw_item_id, person_name: str, slot: int) -> str:
@@ -89,13 +105,21 @@ def run(
         )
 
     for row in items:
+        body = text_by_url.get(row["url"])
+
+        # No body from the feed, but this source's terms have been reviewed:
+        # read the article. Most headlines name nobody, so without this the
+        # database path yields far less than `tracker collect` does.
+        if body is None and row["html_access_reviewed_at"] and client is not None:
+            body = _article_body(client, row["url"])
+
         item = RawItem(
             source_slug=row["source_slug"],
             url=row["url"],
             headline=row["headline"],
             published_at=row["published_at"],
             access_level=row["source_access"],
-            body_text=text_by_url.get(row["url"]),
+            body_text=body,
         )
         try:
             result = extractor.extract(item, reliability_tier=row["reliability_tier"])
