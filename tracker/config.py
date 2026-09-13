@@ -34,7 +34,9 @@ def _require(name: str) -> str:
 
 @dataclass(frozen=True)
 class Config:
-    database_url: str
+    # Optional so the HTTP client and extractor can be constructed without a
+    # database: fetching a feed has nothing to do with Postgres.
+    database_url: str | None
     database_url_direct: str
     user_agent: str
     min_request_interval_seconds: int
@@ -43,7 +45,7 @@ class Config:
 
     @classmethod
     def load(cls) -> Config:
-        database_url = _require("DATABASE_URL")
+        database_url = os.environ.get("DATABASE_URL", "").strip() or None
         user_agent = _require("TRACKER_USER_AGENT")
 
         # Phase 0: the User-Agent must carry a way to reach us. A UA without a
@@ -67,7 +69,9 @@ class Config:
 
         return cls(
             database_url=database_url,
-            database_url_direct=os.environ.get("DATABASE_URL_DIRECT") or database_url,
+            database_url_direct=(
+                os.environ.get("DATABASE_URL_DIRECT") or database_url
+            ),
             user_agent=user_agent,
             min_request_interval_seconds=interval,
             llm_cost_ceiling_usd_per_run=float(

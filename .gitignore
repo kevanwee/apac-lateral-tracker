@@ -23,3 +23,5 @@ out/
 # Local scratch
 scratch/
 *.log
+candidates.json
+*.candidates.json

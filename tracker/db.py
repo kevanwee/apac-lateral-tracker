@@ -12,7 +12,7 @@ from contextlib import contextmanager
 import psycopg
 from psycopg.rows import dict_row
 
-from tracker.config import Config
+from tracker.config import Config, ConfigError
 
 
 @contextmanager
@@ -25,5 +25,10 @@ def connect(*, direct: bool = False, autocommit: bool = False) -> Iterator[psyco
     """
     cfg = Config.load()
     dsn = cfg.database_url_direct if direct else cfg.database_url
+    if not dsn:
+        raise ConfigError(
+            "DATABASE_URL is not set. Copy .env.example to .env and fill it in, "
+            "or set it in the deployment environment."
+        )
     with psycopg.connect(dsn, row_factory=dict_row, autocommit=autocommit) as conn:
         yield conn

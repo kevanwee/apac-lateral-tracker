@@ -58,6 +58,31 @@ def check_deferred(conn: psycopg.Connection) -> None:
     conn.execute("SET CONSTRAINTS ALL IMMEDIATE")
 
 
+# Tables holding data rather than schema. schema_migrations and
+# instance_secrets are deliberately absent: wiping either breaks the session.
+DATA_TABLES = [
+    "llm_calls", "pipeline_run_sources", "pipeline_runs", "review_queue",
+    "move_sectors", "move_practice_groups", "move_field_evidence",
+    "move_sources", "moves", "team_moves", "people", "firm_aliases",
+    "sources", "firms", "practice_groups", "sectors", "taxonomy_versions",
+    "suppressed_people", "erasure_log", "raw_items",
+]
+
+
+@pytest.fixture
+def clean_conn(migrated_db: str):
+    """A committing connection over an empty dataset.
+
+    Pipeline tests commit, so they cannot rely on the rollback isolation the
+    `conn` fixture gives. They get a truncated database instead.
+    """
+    with psycopg.connect(migrated_db, row_factory=dict_row) as c:
+        c.execute(f"TRUNCATE {', '.join(DATA_TABLES)} RESTART IDENTITY CASCADE")
+        c.commit()
+        yield c
+        c.rollback()
+
+
 # ---------------------------------------------------------------------------
 # Fixture builders — small helpers so each test states only what it is about.
 # ---------------------------------------------------------------------------

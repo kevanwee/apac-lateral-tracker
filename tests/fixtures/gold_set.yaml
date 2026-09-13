@@ -1,0 +1,1111 @@
+# Gold set — manually verified movement records.
+#
+# Ground truth for the Phase 7 metrics: extraction precision and recall per
+# field, classification accuracy, and review queue load.
+#
+# ## Read this before using the numbers
+#
+# The brief asks for 100 verified moves. This file has fewer, and the reason
+# matters more than the number: ALB, the primary APAC source, edge-blocks our
+# client (see config/sources.yaml), and Australasian Lawyer's RSS carried no
+# movement news at all on the day sampled. So the live sample is one firm
+# newsroom plus one trade outlet, and that outlet is UK/US-weighted.
+#
+# Filling the remainder honestly needs one of:
+#   - a backfill run over historical feed windows once ingest is wired to the
+#     database, which is where most of the remaining records should come from
+#   - an ALB licensing conversation
+#   - firm newsroom adapters for the rest of the top-100 registry (Phase 2
+#     remaining-source work), which is the highest-yield APAC option
+#
+# Fabricating the other records would make every metric computed from this
+# file a lie, so they are not here.
+#
+# ## Provenance
+#
+#   live_feed   Read from the outlet's own feed on the date given. The `text`
+#               is what our pipeline actually had available.
+#   synthetic   Written to cover a reporting pattern the live sample did not
+#               contain. Never counted in source-coverage or yield metrics;
+#               used only for extraction and dedupe pattern tests. Every one
+#               is marked, and `pattern` says what it exercises.
+#
+# ## Retention
+#
+# Body text is capped at 25 words per record, the same cap the database puts
+# on provenance excerpts. Headlines are stored in full, as they are in
+# `raw_items`. This fixture is not a corpus.
+#
+# ## Expectations
+#
+# `expect` is what the pipeline should produce **from the text in this file**,
+# not what is true in the world. If the text does not name an origin firm,
+# from_firm is null even where the real answer is knowable elsewhere. Marking
+# it otherwise would train the extractor to guess.
+
+version: 1
+sampled_at: 2026-09-13
+text_word_cap: 25
+
+records:
+
+  # =====================================================================
+  # Tier 1 — firm newsroom (live)
+  # =====================================================================
+
+  - id: gold-0001
+    provenance: live_feed
+    source_slug: rajah-tann-asia
+    reliability_tier: 1
+    access_level: full_public
+    url: https://www.rajahtannasia.com/rajah-tann-singapore-welcomes-scott-tan-as-partner-in-international-arbitration/
+    published_at: 2026-07-20
+    headline: >-
+      Rajah & Tann Singapore Welcomes Scott Tan as Partner in International
+      Arbitration
+    text: >-
+      Singapore, 20 July 2026 — Rajah & Tann Singapore is pleased to announce
+      the appointment of Scott Tan
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Scott Tan
+          from_firm: null
+          to_firm: Rajah & Tann Singapore
+          title_from: null
+          title_to: Partner
+          partner_tier: undisclosed
+          office_jurisdiction: SG
+          practice_text: International Arbitration
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: disputes.international_arbitration
+          secondary_practice_groups: []
+          sectors: []
+    note: >-
+      Origin firm is genuinely absent from the announcement. A null here is the
+      correct answer; anything else is inference.
+
+  - id: gold-0002
+    provenance: live_feed
+    source_slug: rajah-tann-asia
+    reliability_tier: 1
+    access_level: full_public
+    url: https://www.rajahtannasia.com/ahp-welcomes-new-intellectual-property-partner-wiku-anindito/
+    published_at: 2026-07-01
+    headline: AHP Welcomes New Intellectual Property Partner Wiku Anindito
+    text: >-
+      Assegaf Hamzah & Partners (AHP) is pleased to announce that Wiku Anindito
+      has joined the firm as a partner
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Wiku Anindito
+          from_firm: null
+          to_firm: Assegaf Hamzah & Partners
+          title_from: null
+          title_to: partner
+          partner_tier: undisclosed
+          office_jurisdiction: ID
+          practice_text: Intellectual Property
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: intellectual_property.trade_marks
+          secondary_practice_groups: []
+          sectors: []
+    pattern: multi_entity_naming
+    note: >-
+      Published on the Rajah & Tann Asia feed but announced by the Indonesian
+      member firm under its own name. to_firm must resolve to Assegaf Hamzah &
+      Partners, not the network brand. Jurisdiction is inferable only because
+      AHP is an Indonesian firm — if the extractor returns null here that is
+      acceptable and the alias table should supply it.
+
+  - id: gold-0003
+    provenance: live_feed
+    source_slug: rajah-tann-asia
+    reliability_tier: 1
+    access_level: full_public
+    url: https://www.rajahtannasia.com/rajah-tann-thailand-limited-strengthens-its-tax-practice/
+    published_at: 2026-07-01
+    headline: Rajah & Tann (Thailand) Limited strengthens its Tax Practice
+    text: >-
+      BANGKOK, THAILAND, 30 June 2026 — Rajah & Tann (Thailand) Limited ("RT"),
+      a member firm of Rajah & Tann Asia
+    expect:
+      is_movement: true
+      moves: []
+    pattern: gate_pass_extract_reject
+    note: >-
+      The available text names no individual. The gate passes it (tier 1 house
+      style) and extraction must return an empty moves list rather than
+      inventing a hire. This record exists to prove the two layers disagree in
+      the right direction.
+
+  # =====================================================================
+  # Tier 2 — trade press (live)
+  # =====================================================================
+
+  - id: gold-0004
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/signature-litigation-hires-seasoned-litigator-from-triay-lawyers-to-head-up-gibraltar-office
+    published_at: 2026-09-11
+    headline: >-
+      Signature Litigation hires seasoned litigator from Triay Lawyers to head
+      up Gibraltar office
+    text: >-
+      Charles Simpson replaces Elliott Phillips, who is returning to London to
+      join Mishcon de Reya
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Charles Simpson
+          from_firm: Triay Lawyers
+          to_firm: Signature Litigation
+          title_from: null
+          title_to: null
+          partner_tier: undisclosed
+          office_jurisdiction: GI
+          practice_text: null
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: disputes.commercial_litigation
+          secondary_practice_groups: []
+          sectors: []
+        - person_name: Elliott Phillips
+          from_firm: Signature Litigation
+          to_firm: Mishcon de Reya
+          title_from: null
+          title_to: null
+          partner_tier: undisclosed
+          office_jurisdiction: GB
+          practice_text: null
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: disputes.commercial_litigation
+          secondary_practice_groups: []
+          sectors: []
+    pattern: two_moves_one_item
+    note: >-
+      One item, two people, moving in opposite directions. A common shape that
+      a naive extractor collapses into one record. GI is not in the seeded
+      jurisdictions table, so this should surface as an unknown-jurisdiction
+      review rather than being silently dropped.
+
+  - id: gold-0005
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/us-asset-manager-pimco-plans-internal-promotion-for-gc-replacement
+    published_at: 2026-09-11
+    headline: US asset manager Pimco plans internal promotion for GC replacement
+    text: >-
+      Head of alternatives business management Rick LeBrun will succeed Sung-Hee
+      Suh at the start of next year
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Rick LeBrun
+          from_firm: Pimco
+          to_firm: Pimco
+          title_from: Head of alternatives business management
+          title_to: GC
+          partner_tier: undisclosed
+          office_jurisdiction: US
+          practice_text: null
+          sector_text: asset manager
+          move_type: promotion
+          team_size: null
+          primary_practice_group: unclassified
+          secondary_practice_groups: []
+          sectors: [financial_services]
+    pattern: in_house_promotion
+    note: >-
+      In-house promotion. from_firm and to_firm are the same, which the schema
+      permits only for move_type promotion. Practice is genuinely unstated, so
+      the primary group is the unclassified sentinel — and it still counts in
+      the denominator.
+
+  - id: gold-0006
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/linklaters-lures-wachtell-dealmaker-to-become-americas-managing-partner
+    published_at: 2026-09-10
+    headline: Linklaters lures Wachtell dealmaker to become Americas managing partner
+    text: Mark Gordon is the latest high-profile defection from Wachtell this year
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Mark Gordon
+          from_firm: Wachtell
+          to_firm: Linklaters
+          title_from: null
+          title_to: Americas managing partner
+          partner_tier: undisclosed
+          office_jurisdiction: US
+          practice_text: null
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: corporate.m_and_a
+          secondary_practice_groups: []
+          sectors: []
+    note: >-
+      "dealmaker" is the only practice signal and it is in the headline, not a
+      stated practice. practice_text null is correct; the classifier may still
+      reach corporate.m_and_a from the title, and should record low confidence
+      if it does.
+
+  - id: gold-0007
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/the-associated-press-names-senior-dow-jones-lawyer-as-gc
+    published_at: 2026-09-10
+    headline: The Associated Press names senior Dow Jones lawyer as GC
+    text: >-
+      Craig Linder replaces Karen Kaiser, who joined the Clooney Foundation for
+      Justice earlier this year
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Craig Linder
+          from_firm: Dow Jones
+          to_firm: The Associated Press
+          title_from: null
+          title_to: GC
+          partner_tier: undisclosed
+          office_jurisdiction: US
+          practice_text: null
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: unclassified
+          secondary_practice_groups: []
+          sectors: [media]
+        - person_name: Karen Kaiser
+          from_firm: The Associated Press
+          to_firm: Clooney Foundation for Justice
+          title_from: GC
+          title_to: null
+          partner_tier: undisclosed
+          office_jurisdiction: US
+          practice_text: null
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: unclassified
+          secondary_practice_groups: []
+          sectors: []
+    pattern: in_house_to_in_house
+    note: >-
+      Both ends are in-house, so this is neither in_house_exit nor
+      in_house_entry — those describe crossing the private practice boundary.
+      An extractor that reaches for in_house_exit here will trip the firm-kind
+      trigger, which is the intended behaviour.
+
+  - id: gold-0008
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/mayer-brown-boosts-brussels-presence-with-baker-mckenzie-trade-partner-hire
+    published_at: 2026-09-08
+    headline: Mayer Brown boosts Brussels presence with Baker McKenzie trade partner hire
+    text: >-
+      Pablo Bentes, who joins with two team members, specialises in representing
+      sovereign states in international trade disputes
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Pablo Bentes
+          from_firm: Baker McKenzie
+          to_firm: Mayer Brown
+          title_from: null
+          title_to: partner
+          partner_tier: undisclosed
+          office_jurisdiction: BE
+          practice_text: international trade disputes
+          sector_text: null
+          move_type: lateral
+          team_size: 3
+          primary_practice_group: regulatory.trade_and_sanctions
+          secondary_practice_groups: [disputes.international_arbitration]
+          sectors: []
+    pattern: team_move_partial_naming
+    note: >-
+      "joins with two team members" gives team_size 3 with one person named.
+      The team members are not stated to be partners, so no further records.
+
+  - id: gold-0009
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/excello-law-makes-double-partner-hire-from-gunnercooke-smith-thompson
+    published_at: 2026-09-08
+    headline: Excello Law makes double partner hire from Gunnercooke, Smith Thompson
+    text: >-
+      Hires include corporate partner Stephen Morrall and three-lawyer property
+      litigation team led by partner Claire-Elaine Arthurs
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Stephen Morrall
+          from_firm: null
+          to_firm: Excello Law
+          title_from: null
+          title_to: corporate partner
+          partner_tier: undisclosed
+          office_jurisdiction: GB
+          practice_text: corporate
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: corporate.corporate_governance
+          secondary_practice_groups: []
+          sectors: []
+        - person_name: Claire-Elaine Arthurs
+          from_firm: null
+          to_firm: Excello Law
+          title_from: null
+          title_to: partner
+          partner_tier: undisclosed
+          office_jurisdiction: GB
+          practice_text: property litigation
+          sector_text: null
+          move_type: lateral
+          team_size: 3
+          primary_practice_group: real_assets.real_estate
+          secondary_practice_groups: [disputes.commercial_litigation]
+          sectors: []
+    pattern: two_origin_firms_unassigned
+    note: >-
+      The headline names two origin firms but the text does not say which
+      person came from which. from_firm must be null for both. Assigning them
+      by order of appearance is exactly the kind of plausible guess that
+      produces a false record.
+
+  - id: gold-0010
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/cloud-communications-business-bandwidth-promotes-deputy-to-gc-role
+    published_at: 2026-09-08
+    headline: Cloud communications business Bandwidth promotes deputy to GC role
+    text: Emily Harlan succeeds Brandon Asbill, who is retiring
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Emily Harlan
+          from_firm: Bandwidth
+          to_firm: Bandwidth
+          title_from: deputy
+          title_to: GC
+          partner_tier: undisclosed
+          office_jurisdiction: null
+          practice_text: null
+          sector_text: cloud communications
+          move_type: promotion
+          team_size: null
+          primary_practice_group: unclassified
+          secondary_practice_groups: []
+          sectors: [technology]
+        - person_name: Brandon Asbill
+          from_firm: Bandwidth
+          to_firm: null
+          title_from: GC
+          title_to: null
+          partner_tier: undisclosed
+          office_jurisdiction: null
+          practice_text: null
+          sector_text: null
+          move_type: retirement
+          team_size: null
+          primary_practice_group: unclassified
+          secondary_practice_groups: []
+          sectors: []
+    pattern: retirement_without_destination
+    note: >-
+      The retirement record is the case that forced to_firm to be nullable.
+      No jurisdiction is stated anywhere, so both are null.
+
+  - id: gold-0011
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/travers-smith-bolsters-employment-ranks-with-deloitte-partner-hire
+    published_at: 2026-09-04
+    headline: Travers Smith bolsters employment ranks with Deloitte partner hire
+    text: >-
+      Andrew Howard, who led Big Four's people and employee relations team,
+      joins in London
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Andrew Howard
+          from_firm: Deloitte
+          to_firm: Travers Smith
+          title_from: null
+          title_to: partner
+          partner_tier: undisclosed
+          office_jurisdiction: GB
+          practice_text: employment
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: employment.employment_and_labour
+          secondary_practice_groups: []
+          sectors: [professional_services]
+    note: >-
+      Origin is a Big Four firm, not a law firm. firm_type must be `other`,
+      not `global`, or the firm-flow matrix starts treating Deloitte as a
+      competitor law firm.
+
+  - id: gold-0012
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/osborne-clarke-builds-on-european-expansion-with-luxembourg-frankfurt-office-openings
+    published_at: 2026-09-04
+    headline: >-
+      Osborne Clarke builds on European expansion with Luxembourg, Frankfurt
+      office openings
+    text: >-
+      Firm adds five partners from firms including Ogier, CMS and White & Case
+      to spearhead office launches
+    expect:
+      is_movement: true
+      moves: []
+    pattern: unnamed_team_move
+    note: >-
+      Five partners move and none are named. is_movement is true — something
+      real happened — but no person-level record can be created. The correct
+      output is an empty moves list, and the item should be retained so a later
+      corroborating source can supply the names.
+
+  - id: gold-0013
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/ai-native-firm-carta-law-makes-twin-compliance-hires-in-europe-and-north-america
+    published_at: 2026-09-03
+    headline: AI-native firm Carta Law makes twin compliance hires in Europe and North America
+    text: Noah Levine and Karin Porstendörfer take up new director positions
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Noah Levine
+          from_firm: null
+          to_firm: Carta Law
+          title_from: null
+          title_to: director
+          partner_tier: undisclosed
+          office_jurisdiction: null
+          practice_text: compliance
+          sector_text: null
+          move_type: lateral
+          team_size: 2
+          primary_practice_group: regulatory.financial_services_regulatory
+          secondary_practice_groups: []
+          sectors: []
+        - person_name: Karin Porstendörfer
+          from_firm: null
+          to_firm: Carta Law
+          title_from: null
+          title_to: director
+          partner_tier: undisclosed
+          office_jurisdiction: null
+          practice_text: compliance
+          sector_text: null
+          move_type: lateral
+          team_size: 2
+          primary_practice_group: regulatory.financial_services_regulatory
+          secondary_practice_groups: []
+          sectors: []
+    pattern: diacritics_in_name
+    note: >-
+      "Europe and North America" are regions, not jurisdictions, so
+      office_jurisdiction is null for both. Porstendörfer exercises accent
+      handling in the name normaliser.
+
+  - id: gold-0014
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/prediction-markets-start-up-onyx-odds-taps-underdog-sports-for-companys-first-gc
+    published_at: 2026-09-03
+    headline: >-
+      Prediction markets start-up Onyx Odds taps Underdog Sports for company's
+      first GC
+    text: >-
+      Former Orrick partner Nicholas Green joins after almost four years as GC
+      at Underdog Sports
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Nicholas Green
+          from_firm: Underdog Sports
+          to_firm: Onyx Odds
+          title_from: GC
+          title_to: GC
+          partner_tier: undisclosed
+          office_jurisdiction: null
+          practice_text: null
+          sector_text: prediction markets
+          move_type: lateral
+          team_size: null
+          primary_practice_group: unclassified
+          secondary_practice_groups: []
+          sectors: [technology]
+    pattern: distractor_prior_employer
+    note: >-
+      Orrick is named but is two employers ago. from_firm is Underdog Sports.
+      An extractor that takes the first firm mentioned gets this wrong.
+
+  - id: gold-0015
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/ogletree-deakins-adds-partner-trio-from-rival-littler-to-launch-in-monterrey
+    published_at: 2026-09-02
+    headline: Ogletree Deakins adds partner trio from rival Littler to launch in Monterrey
+    text: >-
+      Firm's second Mexico office will be led by David Leal Gonzalez, who leaves
+      Littler after almost 13 years
+    expect:
+      is_movement: true
+      moves:
+        - person_name: David Leal Gonzalez
+          from_firm: Littler
+          to_firm: Ogletree Deakins
+          title_from: null
+          title_to: null
+          partner_tier: undisclosed
+          office_jurisdiction: MX
+          practice_text: null
+          sector_text: null
+          move_type: lateral
+          team_size: 3
+          primary_practice_group: employment.employment_and_labour
+          secondary_practice_groups: []
+          sectors: []
+    pattern: team_move_one_named
+    note: >-
+      "partner trio" gives team_size 3; only one is named. Both firms are
+      employment specialists, which is where the classifier's primary group
+      comes from — that is firm-level prior knowledge, not text, so a null
+      practice_text with a low-confidence classification is the honest output.
+
+  - id: gold-0016
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/weil-adds-dechert-kirkland-pe-partners-in-san-francisco
+    published_at: 2026-09-01
+    headline: Weil adds Dechert, Kirkland PE partners in San Francisco
+    text: >-
+      Incoming duo take Weil's private equity partner count to 20 in California
+      as firm continues to build practice
+    expect:
+      is_movement: true
+      moves: []
+    pattern: unnamed_pair_two_origins
+    note: >-
+      Two partners, two named origin firms, no names given. Empty moves list.
+      Pairing Dechert and Kirkland to unnamed individuals would be fabrication.
+
+  - id: gold-0017
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/us-discount-retailer-dollar-general-lines-up-assistant-gc-as-legal-head-replacement
+    published_at: 2026-09-01
+    headline: >-
+      US discount retailer Dollar General lines up assistant GC as legal head
+      replacement
+    text: >-
+      Kelly Collier will replace Rhonda Taylor as GC when she retires from the
+      role in December
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Kelly Collier
+          from_firm: Dollar General
+          to_firm: Dollar General
+          title_from: assistant GC
+          title_to: GC
+          partner_tier: undisclosed
+          office_jurisdiction: US
+          practice_text: null
+          sector_text: discount retailer
+          move_type: promotion
+          team_size: null
+          primary_practice_group: unclassified
+          secondary_practice_groups: []
+          sectors: [retail]
+        - person_name: Rhonda Taylor
+          from_firm: Dollar General
+          to_firm: null
+          title_from: GC
+          title_to: null
+          partner_tier: undisclosed
+          office_jurisdiction: US
+          practice_text: null
+          sector_text: null
+          move_type: retirement
+          team_size: null
+          primary_practice_group: unclassified
+          secondary_practice_groups: []
+          sectors: []
+    pattern: future_dated_move
+    note: >-
+      Announced now, effective in December. announced_date is the publication
+      date; effective_date is "December" and needs resolving to a date or left
+      null. Never backfill effective_date from announced_date.
+
+  - id: gold-0018
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/hfw-makes-twin-disputes-and-luxury-assets-partner-hires-in-london-and-hong-kong
+    published_at: 2026-09-01
+    headline: >-
+      HFW makes twin disputes and luxury assets partner hires in London and Hong
+      Kong
+    text: >-
+      Jennifer Wu joins form Pinsent Masons in Hong Kong, while Toby Joy joins
+      from Withers in London
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Jennifer Wu
+          from_firm: Pinsent Masons
+          to_firm: HFW
+          title_from: null
+          title_to: partner
+          partner_tier: undisclosed
+          office_jurisdiction: HK
+          practice_text: disputes
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: disputes.commercial_litigation
+          secondary_practice_groups: []
+          sectors: []
+        - person_name: Toby Joy
+          from_firm: Withers
+          to_firm: HFW
+          title_from: null
+          title_to: partner
+          partner_tier: undisclosed
+          office_jurisdiction: GB
+          practice_text: luxury assets
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: specialist.private_client_and_wealth
+          secondary_practice_groups: []
+          sectors: [luxury_goods]
+    pattern: two_offices_one_item
+    note: >-
+      APAC-relevant. The source text contains a typo ("joins form"), which the
+      extractor must read through. Two people, two offices, two jurisdictions
+      in one item — assigning both to one office is the failure to watch for.
+
+  - id: gold-0019
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/pinsent-masons-adds-ip-partner-duo-in-germany-from-vossius
+    published_at: 2026-08-28
+    headline: Pinsent Masons adds IP partner duo in Germany from Vossius
+    text: Kai Rüting and Philipp Widera join firm in Düsseldorf
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Kai Rüting
+          from_firm: Vossius
+          to_firm: Pinsent Masons
+          title_from: null
+          title_to: partner
+          partner_tier: undisclosed
+          office_jurisdiction: DE
+          practice_text: IP
+          sector_text: null
+          move_type: lateral
+          team_size: 2
+          primary_practice_group: intellectual_property.patents_and_life_sciences
+          secondary_practice_groups: []
+          sectors: []
+        - person_name: Philipp Widera
+          from_firm: Vossius
+          to_firm: Pinsent Masons
+          title_from: null
+          title_to: partner
+          partner_tier: undisclosed
+          office_jurisdiction: DE
+          practice_text: IP
+          sector_text: null
+          move_type: lateral
+          team_size: 2
+          primary_practice_group: intellectual_property.patents_and_life_sciences
+          secondary_practice_groups: []
+          sectors: []
+    pattern: team_move_both_named
+    note: >-
+      Two partners, same firm pair, same date — the Phase 4 team move detector
+      must group these and the pair must not be merged as duplicates of one
+      person. The dedupe/team-move boundary case.
+
+  - id: gold-0020
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/fujifilm-hires-elekta-regional-gc-as-legal-head-for-its-americas-business
+    published_at: 2026-08-28
+    headline: Fujifilm hires Elekta regional GC as legal head for its Americas business
+    text: >-
+      Michael Hartman replaces Sarah Karlgaard, who left to join HealthPartners
+      in May
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Michael Hartman
+          from_firm: Elekta
+          to_firm: Fujifilm
+          title_from: regional GC
+          title_to: legal head
+          partner_tier: undisclosed
+          office_jurisdiction: null
+          practice_text: null
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: unclassified
+          secondary_practice_groups: []
+          sectors: [healthcare]
+        - person_name: Sarah Karlgaard
+          from_firm: Fujifilm
+          to_firm: HealthPartners
+          title_from: null
+          title_to: null
+          partner_tier: undisclosed
+          office_jurisdiction: null
+          practice_text: null
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: unclassified
+          secondary_practice_groups: []
+          sectors: [healthcare]
+    pattern: backdated_secondary_move
+    note: >-
+      The second move happened in May but is reported in August. Its
+      announced_date is this item's publication date and its effective_date is
+      May — effective_date preceding announced_date, which the schema allows on
+      purpose.
+
+  - id: gold-0021
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/quinn-emanuel-pillsbury-hire-across-middle-east
+    published_at: 2026-08-27
+    headline: Quinn Emanuel, Pillsbury hire across Middle East
+    text: >-
+      Quinn Emanuel adds prominent UAE litigator as Pillsbury brings on senior
+      Saudi government lawyer
+    expect:
+      is_movement: true
+      moves: []
+    pattern: two_firms_no_names
+    note: >-
+      Two separate hires at two firms, neither person named. Empty moves list.
+
+  - id: gold-0022
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/simpson-thacher-boosts-london-energy-practice-with-weil-partner-hire
+    published_at: 2026-08-27
+    headline: Simpson Thacher boosts London energy practice with Weil partner hire
+    text: >-
+      Murray Cox joins US firm's energy and infrastructure practice as it
+      continues to build its London bench
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Murray Cox
+          from_firm: Weil
+          to_firm: Simpson Thacher
+          title_from: null
+          title_to: partner
+          partner_tier: undisclosed
+          office_jurisdiction: GB
+          practice_text: energy and infrastructure
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: real_assets.energy_and_natural_resources
+          secondary_practice_groups: [real_assets.projects_and_infrastructure]
+          sectors: [energy]
+    pattern: compound_practice_phrase
+    note: >-
+      "energy and infrastructure" is one of the compound phrases
+      taxonomy_mappings.yaml must handle: primary energy, secondary projects
+      and infrastructure. Also the practice/sector split — energy is both a
+      practice group and a sector here, and they are recorded separately.
+
+  - id: gold-0023
+    provenance: live_feed
+    source_slug: global-legal-post
+    reliability_tier: 2
+    access_level: summary
+    url: https://www.globallegalpost.com/news/collyer-bristow-and-michelmores-invest-in-new-disputes-leadership
+    published_at: 2026-08-25
+    headline: Collyer Bristow and Michelmores invest in new disputes leadership
+    text: >-
+      Collyer Bristow recruits new commercial disputes chief from Joelson as
+      Twenty Essex silk arrives at Michelmores
+    expect:
+      is_movement: true
+      moves: []
+    pattern: chambers_origin_no_names
+    note: >-
+      Neither person is named. Notable for the chambers-to-firm move ("Twenty
+      Essex silk"), which is the firm_type chambers case — worth a record once
+      a corroborating source supplies the name.
+
+  # =====================================================================
+  # Synthetic — reporting patterns the live sample did not contain
+  # =====================================================================
+
+  - id: gold-s001
+    provenance: synthetic
+    source_slug: synthetic
+    reliability_tier: 2
+    access_level: summary
+    url: null
+    published_at: 2026-05-14
+    headline: Wei Ming (Kevin) Tan SC rejoins Drew & Napier as head of restructuring
+    text: >-
+      Tan Wei Ming, who practises as Kevin Tan, returns from Allen & Gledhill
+      where he was an equity partner
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Wei Ming (Kevin) Tan SC
+          from_firm: Allen & Gledhill
+          to_firm: Drew & Napier
+          title_from: equity partner
+          title_to: head of restructuring
+          partner_tier: equity
+          office_jurisdiction: SG
+          practice_text: restructuring
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: finance.restructuring_and_insolvency
+          secondary_practice_groups: []
+          sectors: []
+    pattern: name_variants_and_ordering
+    note: >-
+      Four name-normalisation problems in one record: a Western given name in
+      brackets, a post-nominal (SC), surname-first ordering in the body versus
+      given-name-first in the headline, and the same person spelled two ways in
+      one item. The Phase 4 normaliser must resolve all four to one person.
+      Also the only record stating an explicit equity tier.
+
+  - id: gold-s002
+    provenance: synthetic
+    source_slug: synthetic
+    reliability_tier: 2
+    access_level: headline_only
+    url: null
+    published_at: 2026-06-02
+    headline: Five-partner projects team departs King & Wood Mallesons for Ashurst in Hong Kong
+    text: null
+    expect:
+      is_movement: true
+      moves: []
+    pattern: headline_only_team_move
+    note: >-
+      Paywalled outlet, headline only. A team move is knowable but no names
+      are. The item must be kept with source_access headline_only so a tier-1
+      firm announcement can corroborate it later, and it must not qualify for
+      the corroboration boost on its own.
+
+  - id: gold-s003
+    provenance: synthetic
+    source_slug: synthetic
+    reliability_tier: 1
+    access_level: full_public
+    url: null
+    published_at: 2026-04-08
+    headline: Three partners leave Firm A to launch disputes boutique Meridian Chambers in Singapore
+    text: >-
+      Lim Hui Ying, Rajesh Kumar and Sarah Ng have left Firm A to found Meridian
+      Chambers, a disputes boutique
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Lim Hui Ying
+          from_firm: Firm A
+          to_firm: Meridian Chambers
+          title_from: null
+          title_to: null
+          partner_tier: undisclosed
+          office_jurisdiction: SG
+          practice_text: disputes
+          sector_text: null
+          move_type: firm_launch
+          team_size: 3
+          primary_practice_group: disputes.commercial_litigation
+          secondary_practice_groups: []
+          sectors: []
+        - person_name: Rajesh Kumar
+          from_firm: Firm A
+          to_firm: Meridian Chambers
+          title_from: null
+          title_to: null
+          partner_tier: undisclosed
+          office_jurisdiction: SG
+          practice_text: disputes
+          sector_text: null
+          move_type: firm_launch
+          team_size: 3
+          primary_practice_group: disputes.commercial_litigation
+          secondary_practice_groups: []
+          sectors: []
+        - person_name: Sarah Ng
+          from_firm: Firm A
+          to_firm: Meridian Chambers
+          title_from: null
+          title_to: null
+          partner_tier: undisclosed
+          office_jurisdiction: SG
+          practice_text: disputes
+          sector_text: null
+          move_type: firm_launch
+          team_size: 3
+          primary_practice_group: disputes.commercial_litigation
+          secondary_practice_groups: []
+          sectors: []
+    pattern: firm_launch
+    note: >-
+      firm_launch with a destination firm that does not exist yet — the firm
+      row has to be created by extraction. Despite the name, Meridian Chambers
+      is a law firm boutique, not a barristers' set: firm_type must not be
+      inferred from the word "Chambers".
+
+  - id: gold-s004
+    provenance: synthetic
+    source_slug: synthetic
+    reliability_tier: 2
+    access_level: summary
+    url: null
+    published_at: 2026-03-19
+    headline: 김민준 joins Kim & Chang as competition partner in Seoul
+    text: >-
+      Min-jun Kim, also romanised as Minjun Kim, joins from Lee & Ko where he
+      was a salaried partner
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Min-jun Kim
+          from_firm: Lee & Ko
+          to_firm: Kim & Chang
+          title_from: salaried partner
+          title_to: competition partner
+          partner_tier: salaried
+          office_jurisdiction: KR
+          practice_text: competition
+          sector_text: null
+          move_type: lateral
+          team_size: null
+          primary_practice_group: disputes.competition_and_antitrust
+          secondary_practice_groups: []
+          sectors: []
+    pattern: romanisation_variants
+    note: >-
+      Hangul in the headline, two romanisations in the body. All three must
+      normalise to one person. The only record stating a salaried tier.
+
+  - id: gold-s005
+    provenance: synthetic
+    source_slug: synthetic
+    reliability_tier: 3
+    access_level: summary
+    url: null
+    published_at: 2026-02-11
+    headline: Legal news roundup — partner moves this week
+    text: >-
+      Among the week's moves, a corporate partner is understood to have joined a
+      magic circle firm in Hong Kong
+    expect:
+      is_movement: false
+      not_movement_reason: aggregator roundup with no named individual or firm
+      moves: []
+    pattern: tier_three_aggregator
+    note: >-
+      Tier 3 aggregator, hedged language, nobody and nothing named. The only
+      tier-3 record in the set, and it should produce nothing.
+
+  - id: gold-s006
+    provenance: synthetic
+    source_slug: synthetic
+    reliability_tier: 1
+    access_level: full_public
+    url: null
+    published_at: 2026-01-22
+    headline: Firm B partners join Firm C following combination of the two practices
+    text: >-
+      Twelve partners including Chan Ka Wai transfer to Firm C as the two firms
+      complete their merger in Hong Kong
+    expect:
+      is_movement: true
+      moves:
+        - person_name: Chan Ka Wai
+          from_firm: Firm B
+          to_firm: Firm C
+          title_from: null
+          title_to: null
+          partner_tier: undisclosed
+          office_jurisdiction: HK
+          practice_text: null
+          sector_text: null
+          move_type: merger_absorbed
+          team_size: 12
+          primary_practice_group: unclassified
+          secondary_practice_groups: []
+          sectors: []
+    pattern: merger_absorbed
+    note: >-
+      A merger is not twelve lateral moves and must not show up in the firm
+      flow matrix as one. move_type merger_absorbed exists to keep it out.
+      Surname-first Cantonese name ordering.

@@ -88,6 +88,146 @@ def db_erase_person(person_id: str, reason: str, actor: str) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Pipeline stages
+# ---------------------------------------------------------------------------
+
+
+@cli.group("sources")
+def sources_group() -> None:
+    """Source register."""
+
+
+@sources_group.command("sync")
+def sources_sync() -> None:
+    """Reconcile config/sources.yaml into the database."""
+    from tracker.pipeline import ingest as ingest_stage
+
+    with db.connect(direct=True) as conn:
+        upserted, deactivated = ingest_stage.sync_sources(conn)
+    click.echo(f"{upserted} source(s) synced, {deactivated} deactivated")
+
+
+@sources_group.command("list")
+def sources_list() -> None:
+    """Show the register, including sources we are not collecting."""
+    from tracker.sources import registry
+
+    for source in registry.load():
+        cfg = source.config
+        if source.blocked_reason:
+            state = "BLOCKED"
+        elif not cfg.active:
+            state = "off"
+        else:
+            state = "active"
+        click.echo(f"  {state:8} t{cfg.reliability_tier}  {cfg.slug:22} {cfg.name}")
+        if source.blocked_reason:
+            click.echo(f"           {' '.join(source.blocked_reason.split())[:96]}")
+
+
+@cli.command("ingest")
+@click.option("--since", type=click.DateTime(formats=["%Y-%m-%d"]), default=None,
+              help="Backfill from this date. Rate limited and resumable.")
+@click.option("--source", "only", default=None, help="Limit to one source slug.")
+def ingest_cmd(since, only: str | None) -> None:
+    """Fetch feeds and store item metadata."""
+    from datetime import UTC
+
+    from tracker.net.client import PoliteClient
+    from tracker.pipeline import ingest as ingest_stage
+    from tracker.pipeline import runs
+
+    if since is not None:
+        since = since.replace(tzinfo=UTC)
+
+    with db.connect(direct=True) as conn, PoliteClient() as client:
+        params = {"since": since.isoformat() if since else None, "source": only}
+        with runs.record(conn, "ingest", params=params) as recorder:
+            ingest_stage.ingest(conn, recorder, client=client, since=since, only=only)
+        click.echo(
+            f"fetched {recorder.items_fetched}, "
+            f"gate rejected {recorder.items_gate_rejected}, "
+            f"errors {recorder.errors}"
+        )
+
+
+@cli.command("extract")
+@click.option("--limit", type=int, default=None, help="Stop after this many items.")
+def extract_cmd(limit: int | None) -> None:
+    """Extract movement records from ingested items."""
+    from tracker.config import Config
+    from tracker.extract.extractor import CostCeilingExceeded, CostLedger, Extractor
+    from tracker.net.client import PoliteClient
+    from tracker.pipeline import extract as extract_stage
+    from tracker.pipeline import runs
+
+    cfg = Config.load()
+    ledger = CostLedger(ceiling_usd=cfg.llm_cost_ceiling_usd_per_run)
+    extractor = Extractor(model=cfg.extraction_model, ledger=ledger)
+
+    with db.connect(direct=True) as conn, PoliteClient() as client:
+        with runs.record(conn, "extract", params={"limit": limit}) as recorder:
+            try:
+                extract_stage.run(
+                    conn, recorder, extractor=extractor, client=client, limit=limit
+                )
+            except CostCeilingExceeded as exc:
+                # Fail loudly. Never silently process a truncated set.
+                recorder.fail("extract", str(exc))
+                raise click.ClickException(str(exc)) from exc
+        click.echo(
+            f"created {recorder.moves_created} move(s), "
+            f"{recorder.moves_queued_for_review} queued for review, "
+            f"spent ${recorder.llm_cost_usd:.4f} over {ledger.calls} call(s)"
+        )
+
+
+@cli.command("status")
+def status_cmd() -> None:
+    """Recent runs, queue depth and any source that has gone quiet."""
+    with db.connect() as conn:
+        runs_ = conn.execute(
+            "SELECT stage, status, started_at, items_fetched, moves_created, "
+            "moves_queued_for_review, errors, llm_cost_usd FROM pipeline_runs "
+            "ORDER BY started_at DESC LIMIT 8"
+        ).fetchall()
+        queue = conn.execute(
+            "SELECT reason, count(*) AS n FROM review_queue "
+            "WHERE resolved_at IS NULL GROUP BY reason ORDER BY n DESC"
+        ).fetchall()
+        alerts = conn.execute("SELECT * FROM source_yield_alerts").fetchall()
+        violations = conn.execute(
+            "SELECT check_name, count(*) AS n FROM invariant_violations "
+            "GROUP BY check_name"
+        ).fetchall()
+
+    click.echo("recent runs")
+    for r in runs_:
+        click.echo(
+            f"  {r['started_at']:%Y-%m-%d %H:%M}  {r['stage']:13} {r['status']:10} "
+            f"fetched={r['items_fetched']:4} moves={r['moves_created']:3} "
+            f"review={r['moves_queued_for_review']:3} errors={r['errors']} "
+            f"${r['llm_cost_usd']}"
+        )
+    click.echo("")
+    click.echo("open review queue")
+    for q in queue:
+        click.echo(f"  {q['n']:4}  {q['reason']}")
+    if not queue:
+        click.echo("  empty")
+    if alerts:
+        click.echo("")
+        click.echo("sources with three or more consecutive empty runs")
+        for a in alerts:
+            click.echo(f"  {a['slug']}: {a['consecutive_zero_yield_runs']} runs")
+    if violations:
+        click.echo("")
+        click.echo("INVARIANT VIOLATIONS")
+        for v in violations:
+            click.echo(f"  {v['n']:4}  {v['check_name']}")
+
+
 def main() -> int:
     try:
         cli(standalone_mode=False)
