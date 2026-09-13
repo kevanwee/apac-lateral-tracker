@@ -255,8 +255,18 @@ def backfill_cmd(since, only: str | None) -> None:
 @click.option("--out", type=click.Path(dir_okay=False), default="collected.json",
               show_default=True, help="Where to write the results.")
 @click.option("--source", "only", default=None, help="Limit to one source slug.")
+@click.option("--fetch-articles", is_flag=True,
+              help="Read article bodies for sources whose terms have been reviewed. "
+                   "Slow (10s per request) but the only way to reach headlines "
+                   "that name nobody.")
+@click.option("--max-articles", type=int, default=None,
+              help="Stop fetching bodies after this many. The run still completes.")
+@click.option("--cache", type=click.Path(dir_okay=False), default="article_cache.json",
+              show_default=True,
+              help="Article bodies fetched so far, so an interrupted run resumes.")
 @extractor_option
-def collect_cmd(since, out: str, only: str | None, extractor: str) -> None:
+def collect_cmd(since, out: str, only: str | None, fetch_articles: bool,
+                max_articles: int | None, cache: str, extractor: str) -> None:
     """Run the whole free pipeline with no database, and write the results to a file.
 
     Fetch, gate and extract, exactly as a real backfill would, but holding
@@ -269,11 +279,12 @@ def collect_cmd(since, out: str, only: str | None, extractor: str) -> None:
     """
     import json
     from collections import Counter
+    from dataclasses import replace
     from datetime import UTC
 
     from tracker.gate import evaluate
-    from tracker.net.client import PoliteClient
-    from tracker.sources import registry
+    from tracker.net.client import PoliteClient, RobotsDisallowed
+    from tracker.sources import article, registry
 
     since = since.replace(tzinfo=UTC)
     engine, description = _build_extractor(extractor)
@@ -283,6 +294,15 @@ def collect_cmd(since, out: str, only: str | None, extractor: str) -> None:
     per_source: dict[str, dict] = {}
     records: list[dict] = []
     cost = 0.0
+
+    # Bodies are cached on disk so an interrupted run does not re-fetch what it
+    # already has. This is the no-database stand-in for raw_items.
+    cache_path = pathlib.Path(cache)
+    bodies: dict[str, str] = {}
+    if cache_path.exists():
+        bodies = json.loads(cache_path.read_text(encoding="utf-8"))
+        click.echo(f"  {len(bodies)} article bodies already cached")
+    fetched_now = 0
 
     with PoliteClient() as client:
         for source in registry.load():
@@ -310,6 +330,34 @@ def collect_cmd(since, out: str, only: str | None, extractor: str) -> None:
                 if not decision.passed:
                     continue
                 passed += 1
+
+                # Read the article body where the source allows it and the
+                # headline gave us nothing to work with.
+                if (
+                    fetch_articles
+                    and cfg.html_access_reviewed_at
+                    and not item.body_text
+                ):
+                    if item.url in bodies:
+                        item = replace(item, body_text=bodies[item.url] or None)
+                    elif max_articles is None or fetched_now < max_articles:
+                        body = None
+                        try:
+                            page = client.fetch(item.url)
+                            body = article.body_of(page.text)
+                        except RobotsDisallowed:
+                            body = None  # robots said no; that is a valid answer
+                        except Exception as exc:  # noqa: BLE001
+                            click.echo(f"    ! {item.url[:70]}: {exc}", err=True)
+                        bodies[item.url] = body or ""
+                        fetched_now += 1
+                        if fetched_now % 10 == 0:
+                            cache_path.write_text(
+                                json.dumps(bodies, ensure_ascii=False), encoding="utf-8"
+                            )
+                            click.echo(f"[{fetched_now}]", nl=False)
+                        item = replace(item, body_text=body)
+
                 result = engine.extract(item, reliability_tier=cfg.reliability_tier)
                 cost += result.cost_usd
                 for move in result.moves:
@@ -336,6 +384,12 @@ def collect_cmd(since, out: str, only: str | None, extractor: str) -> None:
                 "fetched": len(items), "gate_passed": passed, "records": found,
             }
             click.echo(f"{len(items)} fetched, {passed} passed the gate, {found} records")
+
+    if fetch_articles:
+        cache_path.write_text(json.dumps(bodies, ensure_ascii=False), encoding="utf-8")
+        click.echo("")
+        click.echo(f"  {fetched_now} article(s) fetched this run, "
+                   f"{len(bodies)} cached in {cache}")
 
     payload = {
         "since": since.date().isoformat(),

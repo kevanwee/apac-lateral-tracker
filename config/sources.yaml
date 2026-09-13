@@ -129,6 +129,17 @@ sources:
       year_url_template: https://www.thelawyermag.com/au/sitemaps/articles/{year}
       include_pattern: "/au/"
       max_sitemaps: 12
+    # Terms reviewed and article reading enabled. Without this the archive
+    # yields headlines only, and this outlet's headlines usually name nobody.
+    html_access_reviewed_at: 2026-09-13
+    html_access_reviewed_by: kevanwee
+    terms_url: https://www.thelawyermag.com/robots.txt
+    terms_note: >-
+      robots.txt disallows only /au/business-news/, /nz/business-news/,
+      /cdn-cgi/ and *__hstc= ; the article paths we read (/au/news/,
+      /au/practice-areas/) are permitted, and no Crawl-delay is declared so our
+      10s floor applies. The client checks robots per URL, so any disallowed
+      article is skipped automatically rather than by our own filtering.
 
   - slug: global-legal-post-archive
     name: The Global Legal Post — archive

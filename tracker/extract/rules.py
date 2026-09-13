@@ -43,7 +43,7 @@ import logging
 import re
 from dataclasses import dataclass
 
-from tracker.extract import confidence
+from tracker.extract import body_rules, confidence
 from tracker.extract.extractor import ExtractedMove, ExtractionResult
 from tracker.extract.spans import VerifiedField, _excerpt
 from tracker.firms import FirmGazetteer
@@ -235,8 +235,104 @@ class RuleExtractor:
             result.moves.append(move)
             return result
 
-        result.not_movement_reason = "no rule template matched this headline"
+        # The headline named nobody. Most of them do not — the names are one
+        # level down, in the article body, when we have it.
+        body = item.body_text
+        if body:
+            moves = self._from_body(body, headline, item, reliability_tier)
+            if moves:
+                result.is_movement = True
+                result.moves.extend(moves)
+                return result
+
+        result.not_movement_reason = (
+            "no rule template matched the headline"
+            + ("" if body else "; no article body available")
+        )
         return result
+
+    def _from_body(
+        self, body: str, headline: str, item: RawItem, reliability_tier: int
+    ) -> list[ExtractedMove]:
+        """Records from the article body, with the destination from the headline."""
+        to_firm = body_rules.subject_firm(headline, self.gazetteer)
+        if to_firm is None:
+            return []
+
+        # Spans must index the combined text the verifier sees.
+        offset = len(headline) + 2
+        moves: list[ExtractedMove] = []
+
+        for hit in body_rules.find(body, headline, self.gazetteer):
+            person = _strip_honorific(hit.person)
+            if not _looks_like_a_person(person, self.gazetteer):
+                continue
+            if hit.title and not PARTNER_LEVEL_TITLE.search(hit.title):
+                continue
+
+            move_type = "lateral"
+            from_firm = hit.from_firm
+            if from_firm == to_firm:
+                move_type = "promotion"
+
+            fields: dict[str, VerifiedField] = {
+                "person_name": VerifiedField(
+                    name="person_name", value=person,
+                    span_start=offset + hit.person_start,
+                    span_end=offset + hit.person_end,
+                    quality="exact",
+                    excerpt=_excerpt(body, hit.person_start, hit.person_end),
+                ),
+                "to_firm": VerifiedField(
+                    name="to_firm", value=to_firm,
+                    span_start=0, span_end=len(headline),
+                    # The destination is carried from the headline rather than
+                    # matched in this sentence, so it is not an exact span.
+                    quality="recovered",
+                    excerpt=_excerpt(headline, 0, len(headline)),
+                ),
+            }
+            if from_firm:
+                fields["from_firm"] = VerifiedField(
+                    name="from_firm", value=from_firm,
+                    span_start=offset + hit.person_start,
+                    span_end=offset + hit.person_end,
+                    quality="recovered",
+                    excerpt=_excerpt(body, hit.person_start, hit.person_end),
+                )
+            if hit.title:
+                fields["title_to"] = VerifiedField(
+                    name="title_to", value=hit.title,
+                    span_start=offset + hit.person_start,
+                    span_end=offset + hit.person_end,
+                    quality="recovered",
+                    excerpt=_excerpt(body, hit.person_start, hit.person_end),
+                )
+            fields["move_type"] = VerifiedField(
+                name="move_type", value=move_type,
+                span_start=offset + hit.person_start,
+                span_end=offset + hit.person_end,
+                quality="recovered",
+                excerpt=_excerpt(body, hit.person_start, hit.person_end),
+            )
+
+            present = {f for f in confidence.COMPLETENESS_WEIGHTS if f in fields}
+            moves.append(
+                ExtractedMove(
+                    fields=fields,
+                    dropped=[],
+                    team_size=None,
+                    self_confidence=0.9,
+                    confidence=confidence.score(
+                        reliability_tier=reliability_tier,
+                        access_level=item.access_level,
+                        present_fields=present,
+                        span_qualities=[f.quality for f in fields.values()],
+                        self_reported=0.9,
+                    ),
+                )
+            )
+        return moves
 
     # -- internals ---------------------------------------------------------
 
