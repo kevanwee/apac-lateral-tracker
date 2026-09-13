@@ -21,6 +21,26 @@ def cli() -> None:
     """Partner lateral movement intelligence pipeline."""
 
 
+@cli.command("doctor")
+def doctor_cmd() -> None:
+    """Check whether the pipeline can run, and say what is missing."""
+    from tracker.preflight import blockers, run_checks
+
+    checks = run_checks()
+    symbol = {"ok": "  ok  ", "optional": " note ", "blocker": " BLOCK"}
+    for check in checks:
+        click.echo(f"{symbol[check.level]}  {check.message}")
+        if check.remedy and check.level != "ok":
+            click.echo(f"          -> {check.remedy}")
+
+    failed = blockers(checks)
+    click.echo("")
+    if failed:
+        click.echo(f"{len(failed)} blocker(s). See docs/SETUP.md.")
+        raise SystemExit(1)
+    click.echo("Ready. Next: tracker db migrate && tracker firms --sync && tracker sources sync")
+
+
 @cli.group("db")
 def db_group() -> None:
     """Schema management."""
