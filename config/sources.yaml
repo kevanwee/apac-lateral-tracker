@@ -111,11 +111,18 @@ sources:
       child_pattern: "sitemap-posts"
       include_pattern: "/news/"
       max_sitemaps: 6
+    active: false
+    blocked_reason: >-
+      The origin serves /sitemap.xml to curl but returns 403 to our HTTP client
+      with an identical User-Agent, while serving /rss and /robots.txt to both
+      (reproduced 2026-09-13). That is a client-fingerprint block on that path,
+      and the only way past it is to impersonate a different client — the same
+      evasion we refuse for ALB. The live feed source above is unaffected and
+      keeps working, so only the archive is lost.
     notes: >-
-      lastmod is regenerated in bulk — thousands of URLs share one timestamp —
-      so the adapter detects that and marks published_at estimated rather than
-      believing it. Dates from this source are unreliable until a corroborating
-      record supplies a real one.
+      If this is ever re-enabled: lastmod is regenerated in bulk — thousands of
+      URLs share one timestamp — so the adapter marks published_at estimated
+      rather than believing it.
 
   # ---------------------------------------------------------------------
   # Registered but not collected

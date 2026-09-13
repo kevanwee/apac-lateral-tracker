@@ -6,6 +6,7 @@ re-running it on the same input must not create duplicate rows.
 
 from __future__ import annotations
 
+import pathlib
 import sys
 from datetime import datetime
 
@@ -246,6 +247,124 @@ def backfill_cmd(since, only: str | None) -> None:
             "WHERE backfilled_to IS NOT NULL ORDER BY slug"
         ).fetchall():
             click.echo(f"  {row['slug']:32} back to {row['backfilled_to']}")
+
+
+@cli.command("collect")
+@click.option("--since", type=click.DateTime(formats=["%Y-%m-%d"]), required=True,
+              help="How far back to walk the archives.")
+@click.option("--out", type=click.Path(dir_okay=False), default="collected.json",
+              show_default=True, help="Where to write the results.")
+@click.option("--source", "only", default=None, help="Limit to one source slug.")
+@extractor_option
+def collect_cmd(since, out: str, only: str | None, extractor: str) -> None:
+    """Run the whole free pipeline with no database, and write the results to a file.
+
+    Fetch, gate and extract, exactly as a real backfill would, but holding
+    everything in memory and reporting what it found. Useful before committing
+    to a database or to LLM spend: it shows the real yield of a window rather
+    than an estimate of it.
+
+    Stores the same fields the database would: URL, headline, date, outlet and
+    the extracted record. No article text.
+    """
+    import json
+    from collections import Counter
+    from datetime import UTC
+
+    from tracker.gate import evaluate
+    from tracker.net.client import PoliteClient
+    from tracker.sources import registry
+
+    since = since.replace(tzinfo=UTC)
+    engine, description = _build_extractor(extractor)
+    click.echo(f"collecting since {since:%Y-%m-%d} with {description}")
+    click.echo("")
+
+    per_source: dict[str, dict] = {}
+    records: list[dict] = []
+    cost = 0.0
+
+    with PoliteClient() as client:
+        for source in registry.load():
+            cfg = source.config
+            if not source.collectable or (only and cfg.slug != only):
+                continue
+
+            click.echo(f"  {cfg.slug} ... ", nl=False)
+            try:
+                items = list(
+                    registry.build_adapter(source, client).fetch(since=since)
+                )
+            except Exception as exc:  # noqa: BLE001 - one source must not end the run
+                click.echo(f"FAILED ({type(exc).__name__}: {exc})")
+                per_source[cfg.slug] = {"error": str(exc)[:200]}
+                continue
+
+            passed = 0
+            found = 0
+            for item in items:
+                decision = evaluate(
+                    item.headline, item.body_text,
+                    reliability_tier=cfg.reliability_tier,
+                )
+                if not decision.passed:
+                    continue
+                passed += 1
+                result = engine.extract(item, reliability_tier=cfg.reliability_tier)
+                cost += result.cost_usd
+                for move in result.moves:
+                    found += 1
+                    records.append({
+                        "source": cfg.slug,
+                        "tier": cfg.reliability_tier,
+                        "url": item.url,
+                        "headline": item.headline,
+                        "headline_is_derived": item.headline_is_derived,
+                        "published_at": item.published_at.date().isoformat(),
+                        "date_estimated": item.published_at_is_estimated,
+                        "person": move.value("person_name"),
+                        "to_firm": move.value("to_firm"),
+                        "from_firm": move.value("from_firm"),
+                        "title_to": move.value("title_to"),
+                        "practice": move.value("practice_text"),
+                        "move_type": move.value("move_type"),
+                        "confidence": move.confidence.total,
+                        "needs_review": move.needs_review,
+                        "extractor": result.model,
+                    })
+            per_source[cfg.slug] = {
+                "fetched": len(items), "gate_passed": passed, "records": found,
+            }
+            click.echo(f"{len(items)} fetched, {passed} passed the gate, {found} records")
+
+    payload = {
+        "since": since.date().isoformat(),
+        "extractor": description,
+        "cost_usd": round(cost, 4),
+        "per_source": per_source,
+        "records": records,
+    }
+    pathlib.Path(out).write_text(
+        json.dumps(payload, indent=1, ensure_ascii=False), encoding="utf-8"
+    )
+
+    fetched = sum(v.get("fetched", 0) for v in per_source.values())
+    passed = sum(v.get("gate_passed", 0) for v in per_source.values())
+    click.echo("")
+    click.echo(
+        f"{fetched:,} items fetched, {passed:,} passed the gate, "
+        f"{len(records):,} records extracted, cost ${cost:.4f}"
+    )
+    if records:
+        years = Counter(r["published_at"][:4] for r in records)
+        click.echo("records by year: " + ", ".join(
+            f"{y} {n}" for y, n in sorted(years.items())
+        ))
+        firms = Counter(r["to_firm"] for r in records)
+        click.echo("top destinations: " + ", ".join(
+            f"{f} ({n})" for f, n in firms.most_common(6)
+        ))
+    click.echo(f"written to {out}")
 
 
 @cli.command("catch-up")

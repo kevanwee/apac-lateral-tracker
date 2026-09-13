@@ -25,3 +25,6 @@ scratch/
 *.log
 candidates.json
 *.candidates.json
+collected.json
+glp.json
+*.collected.json

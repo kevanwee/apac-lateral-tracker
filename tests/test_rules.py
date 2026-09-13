@@ -144,6 +144,25 @@ MUST_ABSTAIN = [
         "Minterellison promotes even dozen to partner in massive round",
         "a quantity read as a name",
     ),
+    # Epithets standing in for a name. All three came out of the first real
+    # collection run over 8,083 live items.
+    (
+        "Jws appoints corrs ip star as new partner",
+        "a practice-area epithet read as a name",
+    ),
+    (
+        "Holding redlich appoints seasoned investment funds star as new partner",
+        "a descriptive epithet read as a name",
+    ),
+    (
+        "Private equity experts re joins clifford chance as partner in london",
+        "a practice description read as a name",
+    ),
+    # Not a partner-level appointment.
+    (
+        "Rajah & Tann appoints Clarisse Girot as advisor to data privacy practice",
+        "an advisory appointment, not a partner move",
+    ),
     # No person is named at all.
     ("Seven new partners join minterellison", "no individual named"),
     (
@@ -176,6 +195,13 @@ def test_ambiguous_headlines_produce_nothing(headline, reason):
 # ---------------------------------------------------------------------------
 # Properties that hold whatever the template
 # ---------------------------------------------------------------------------
+
+
+def test_an_honorific_is_not_part_of_the_name():
+    move = extract(
+        "Dentons appoints Dr Clarisse Girot as global head of data privacy"
+    ).moves[0]
+    assert move.value("person_name") == "Clarisse Girot"
 
 
 def test_extraction_is_free():

@@ -104,7 +104,45 @@ QUANTITY_WORDS = {
     "twin", "double", "triple", "even",
 }
 
-NOT_A_PERSON = FUNCTION_WORDS | ROLE_WORDS | QUANTITY_WORDS
+# Epithets trade press uses INSTEAD of a name: "Corrs IP star", "seasoned
+# investment funds star", "magic circle veteran". These read exactly like a
+# name in a template slot and are the most common false positive by far.
+DESCRIPTOR_WORDS = {
+    "star", "expert", "experts", "ace", "guru", "heavyweight", "rainmaker",
+    "boss", "pro", "hire", "hires", "recruit", "name", "talent", "figure",
+    "player", "high", "flyer", "rising", "seasoned", "prominent", "leading",
+    "top", "big", "magic", "circle", "silver", "four", "eminent", "noted",
+    "well", "known", "respected", "trio", "quartet", "quintet",
+}
+
+# Practice and sector vocabulary. A name slot containing one of these means the
+# template swallowed a practice description: "Corrs IP star", "private equity
+# experts".
+PRACTICE_WORDS = {
+    "ip", "ma", "esg", "funds", "fund", "investment", "investments", "equity",
+    "private", "corporate", "litigation", "litigator", "disputes", "dispute",
+    "tax", "employment", "labour", "banking", "finance", "financial", "energy",
+    "projects", "project", "infrastructure", "real", "estate", "property",
+    "insurance", "shipping", "aviation", "arbitration", "regulatory",
+    "compliance", "antitrust", "competition", "privacy", "data", "cyber",
+    "patent", "patents", "trademark", "trade", "marks", "restructuring",
+    "insolvency", "capital", "markets", "securities", "construction",
+    "technology", "tech", "media", "entertainment", "healthcare", "life",
+    "sciences", "pharma", "mining", "resources", "wellbeing", "esports",
+}
+
+NOT_A_PERSON = (
+    FUNCTION_WORDS | ROLE_WORDS | QUANTITY_WORDS | DESCRIPTOR_WORDS | PRACTICE_WORDS
+)
+
+# A captured title must be partner-level or this is not a movement we track.
+# "appoints X as advisor to the data privacy practice" is an advisory
+# appointment, not a lateral partner move.
+PARTNER_LEVEL_TITLE = re.compile(
+    r"\b(?:partner|counsel|head|chair|chairman|chairwoman|managing|"
+    r"principal|director|general\s+counsel|gc\b|clo\b|silk|kc\b|qc\b|sc\b)",
+    re.IGNORECASE,
+)
 
 # Ordered most specific first; the first template that matches wins.
 TEMPLATES: list[tuple[str, str, str]] = [
@@ -136,6 +174,14 @@ TEMPLATES: list[tuple[str, str, str]] = [
 ]
 
 COMPILED = [(name, mtype, re.compile(pat, re.IGNORECASE)) for name, mtype, pat in TEMPLATES]
+
+
+HONORIFIC = re.compile(r"^(?:dr|mr|mrs|ms|miss|prof(?:essor)?|sir|dame)\s+", re.IGNORECASE)
+
+
+def _strip_honorific(name: str) -> str:
+    """'Dr Clarisse Girot' -> 'Clarisse Girot'. Titles are not part of a name."""
+    return HONORIFIC.sub("", name).strip()
 
 
 def _looks_like_a_person(candidate: str, gazetteer: FirmGazetteer | None = None) -> bool:
@@ -205,9 +251,16 @@ class RuleExtractor:
     ) -> ExtractedMove | None:
         groups = match.groupdict()
 
-        person = (groups.get("person") or "").strip()
+        person = _strip_honorific((groups.get("person") or "").strip())
         if not _looks_like_a_person(person, self.gazetteer):
             log.debug("%s: %r is not a person, abstaining", rule_name, person)
+            return None
+
+        # A captured title that is not partner-level means this is a different
+        # kind of appointment, not a move we track.
+        title = (groups.get("title") or "").strip()
+        if title and not PARTNER_LEVEL_TITLE.search(title):
+            log.debug("%s: %r is not a partner-level title, abstaining", rule_name, title)
             return None
 
         # A firm slot that the gazetteer does not recognise is a guess, and a
@@ -234,8 +287,8 @@ class RuleExtractor:
                 fields, "from_firm", from_firm, headline, match, origin_group,
                 literal=False,
             )
-        if groups.get("title"):
-            self._add(fields, "title_to", groups["title"].strip(), headline, match, "title")
+        if title:
+            self._add(fields, "title_to", title, headline, match, "title")
         if groups.get("practice"):
             self._add(
                 fields, "practice_text", groups["practice"].strip(), headline, match, "practice"
