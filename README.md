@@ -22,7 +22,7 @@ because the output is used for market analysis that people act on.
 | 3 | Taxonomy and classification | Not started |
 | 4 | Deduplication | Not started |
 | 5 | Trend analytics | Not started |
-| 6 | Scheduling and deployment | Not started |
+| 6 | Scheduling and deployment | Partial — catch-up workflow done, dashboard pending |
 | 7 | Evaluation harness | Not started |
 
 ## Quick start
@@ -37,11 +37,35 @@ tracker extract             # pull movement records out of what passed the gate
 tracker status              # runs, review queue depth, quiet sources
 ```
 
-Backfill is the same command with a window, rate limited and resumable:
+## Operating model
+
+This is a historical record refreshed on demand, not a daily feed. There is no
+daily cron: the pipeline loads years of archive once, then catches up when you
+run it.
 
 ```bash
-tracker ingest --since 2026-01-01
+tracker backfill --since 2020-01-01   # load history, resumable
+tracker catch-up                      # bring it up to date; run every few months
+tracker catch-up --no-extract         # ingest only, spend nothing
 ```
+
+`catch-up` defaults to the window since the last successful run, with two weeks
+of deliberate overlap because outlets publish late. Every stage is idempotent,
+so running it twice costs time and nothing else. In GitHub Actions it is a
+manual **Actions → Catch up → Run workflow**; a quarterly schedule opens a
+reminder issue rather than spending the LLM budget unattended.
+
+### How far back the sources reach
+
+| Source | Route | Depth |
+|---|---|---|
+| Rajah & Tann Asia | WordPress feed pagination | April 2020, with summaries |
+| Australasian Lawyer | Year-partitioned sitemaps | 2019, headline only |
+| Global Legal Post | Posts sitemaps | ~20,000 URLs, dates unreliable |
+| ALB | Newsletter via IMAP | As far back as your subscription |
+
+Sitemap-derived headlines are rebuilt from URL slugs, so they are marked
+`headline_is_derived`, stored as `headline_only`, and never auto-accept.
 
 ## Layout
 

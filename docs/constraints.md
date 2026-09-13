@@ -124,6 +124,42 @@ no personal data, so the operation is auditable without defeating its purpose.
 
 ---
 
+## 4a. Reaching history without scraping articles
+
+Three routes into an archive were added once the operating model changed from
+a daily cron to an occasional catch-up. None of them fetch an article page.
+
+**Sitemaps.** A sitemap is the index a site publishes *for* machines, listed in
+its own robots.txt. Reading one is the least intrusive way to enumerate an
+archive: Australasian Lawyer's 2024-2026 range is 2,868 URLs for three
+requests, against 2,868 requests to read the same range article by article.
+
+Headlines are rebuilt from the URL slug, which is lossy — no capitalisation, no
+punctuation. Those items are therefore marked `headline_is_derived` and pinned
+to `source_access = 'headline_only'` by a check constraint. They are leads, not
+evidence, and never auto-accept. Turning one into a full record means reading
+the article, which needs a dated terms review on that source first.
+
+**Feed pagination.** Most firm newsrooms run WordPress, whose feed accepts a
+page parameter and serves the same feed shifted back in time. This is the
+site's own feed, on the site's own terms, just further back — Rajah & Tann
+reaches April 2020. Each page is one request under the same 10s floor.
+
+**Newsletters (IMAP).** The lawful-access route to an outlet that blocks
+automated clients. ALB returns 403 to our crawler on every path including
+robots.txt, so we do not crawl it — but it sends its newsletter to subscribers.
+Reading mail addressed to you is not circumvention, and it is the access the
+outlet chose to grant.
+
+The adapter opens **one named folder, read-only**, filtered to a sender
+allowlist. It has no code path that writes, moves or deletes, and it never
+falls back to INBOX. It extracts links and their anchor text, then discards the
+message. No body, no addresses, no message-ids. Credentials must be an
+app-specific password.
+
+This does not make ALB's website fetchable. If the newsletter stops, the source
+goes quiet; it does not fall back to crawling.
+
 ## 5. What this means for coverage
 
 These constraints cost coverage, and the honest version is:
