@@ -46,6 +46,8 @@ def test_editing_an_applied_migration_is_rejected(migrated_db, monkeypatch):
         ]
 
     monkeypatch.setattr(migrate, "discover", tampered)
-    with psycopg.connect(migrated_db, row_factory=dict_row) as conn:
-        with pytest.raises(migrate.MigrationError, match="immutable"):
-            migrate.status(conn)
+    with (
+        psycopg.connect(migrated_db, row_factory=dict_row) as conn,
+        pytest.raises(migrate.MigrationError, match="immutable"),
+    ):
+        migrate.status(conn)
