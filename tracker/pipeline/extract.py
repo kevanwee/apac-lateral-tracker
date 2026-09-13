@@ -23,7 +23,9 @@ records rather than wrong ones.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
+import pathlib
 
 import psycopg
 
@@ -67,6 +69,31 @@ def feed_text_map(client: PoliteClient, slugs: set[str]) -> dict[str, str]:
     return mapping
 
 
+# Article bodies already fetched, shared with `tracker collect`. Article text
+# is never stored in the database, but re-fetching hundreds of pages at a 10s
+# floor to redo work already done is not politeness, it is waste. The cache is
+# a local working file, gitignored, and holds nothing the extractor did not
+# already hold in memory for one call.
+ARTICLE_CACHE = pathlib.Path("article_cache.json")
+
+
+def load_article_cache(path: pathlib.Path = ARTICLE_CACHE) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        log.warning("article cache at %s is unreadable; starting empty", path)
+        return {}
+
+
+def save_article_cache(cache: dict[str, str], path: pathlib.Path = ARTICLE_CACHE) -> None:
+    try:
+        path.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+    except OSError as exc:
+        log.warning("could not write the article cache: %s", exc)
+
+
 def _article_body(client: PoliteClient, url: str) -> str | None:
     """Fetch and reduce one article. Never raises; a miss is just less evidence."""
     try:
@@ -104,14 +131,24 @@ def run(
             feed_text_map(client, {i["source_slug"] for i in items}) if client else {}
         )
 
+    cache = load_article_cache()
+    fetched = 0
+
     for row in items:
         body = text_by_url.get(row["url"])
 
         # No body from the feed, but this source's terms have been reviewed:
         # read the article. Most headlines name nobody, so without this the
         # database path yields far less than `tracker collect` does.
-        if body is None and row["html_access_reviewed_at"] and client is not None:
-            body = _article_body(client, row["url"])
+        if body is None and row["html_access_reviewed_at"]:
+            if row["url"] in cache:
+                body = cache[row["url"]] or None
+            elif client is not None:
+                body = _article_body(client, row["url"])
+                cache[row["url"]] = body or ""
+                fetched += 1
+                if fetched % 10 == 0:
+                    save_article_cache(cache)
 
         item = RawItem(
             source_slug=row["source_slug"],
@@ -156,6 +193,10 @@ def run(
 
         _mark(conn, row["id"], "extracted")
         conn.commit()
+
+    if fetched:
+        save_article_cache(cache)
+        log.info("fetched %d article(s) this run, %d cached", fetched, len(cache))
 
 
 # ---------------------------------------------------------------------------
