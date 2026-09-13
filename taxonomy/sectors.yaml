@@ -1,0 +1,79 @@
+# Industry sectors — the axis that is NOT practice area.
+#
+# A fintech regulatory partner is:
+#     practice = regulatory.financial_services
+#     sector   = financial_services
+#
+# Kept apart deliberately. Collapsing them is the single most common failure in
+# market trend datasets, because it destroys the ability to answer whether
+# growth is in the practice or in the sector — which is usually the question
+# being asked.
+#
+# Versioned alongside practice_groups.yaml: one taxonomy release covers both
+# axes, so a move's practice and sector always come from the same vintage.
+
+version: 1.0.0
+
+sectors:
+  - code: financial_services
+    name: Financial Services
+    children:
+      - {code: financial_services.banking, name: Banking}
+      - {code: financial_services.insurance, name: Insurance}
+      - {code: financial_services.asset_management, name: Asset Management}
+      - {code: financial_services.fintech, name: Fintech}
+
+  - code: technology
+    name: Technology
+    children:
+      - {code: technology.software, name: Software and SaaS}
+      - {code: technology.semiconductors, name: Semiconductors and Hardware}
+      - {code: technology.ai, name: Artificial Intelligence}
+      - {code: technology.telecoms, name: Telecommunications}
+
+  - code: energy
+    name: Energy and Resources
+    children:
+      - {code: energy.oil_gas, name: Oil and Gas}
+      - {code: energy.renewables, name: Renewables}
+      - {code: energy.mining, name: Mining and Metals}
+      - {code: energy.utilities, name: Utilities}
+
+  - code: real_estate
+    name: Real Estate and Construction
+
+  - code: healthcare
+    name: Healthcare and Life Sciences
+    children:
+      - {code: healthcare.pharmaceuticals, name: Pharmaceuticals}
+      - {code: healthcare.medtech, name: Medical Technology}
+      - {code: healthcare.providers, name: Healthcare Providers}
+
+  - code: consumer
+    name: Consumer and Retail
+    children:
+      - {code: consumer.retail, name: Retail}
+      - {code: consumer.food_beverage, name: Food and Beverage}
+      - {code: consumer.luxury_goods, name: Luxury Goods}
+
+  - code: industrials
+    name: Industrials and Manufacturing
+
+  - code: transport
+    name: Transport and Logistics
+    children:
+      - {code: transport.shipping, name: Shipping}
+      - {code: transport.aviation, name: Aviation}
+      - {code: transport.rail, name: Rail}
+
+  - code: media
+    name: Media and Entertainment
+    children:
+      - {code: media.sport, name: Sport}
+      - {code: media.gaming, name: Gaming and Esports}
+
+  - code: public_sector
+    name: Public Sector and Government
+
+  - code: professional_services
+    name: Professional Services

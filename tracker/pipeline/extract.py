@@ -131,6 +131,9 @@ def run(
             feed_text_map(client, {i["source_slug"] for i in items}) if client else {}
         )
 
+    from tracker.taxonomy import Taxonomy
+
+    taxonomy = Taxonomy.load()
     cache = load_article_cache()
     fetched = 0
 
@@ -189,7 +192,7 @@ def run(
             continue
 
         for slot, move in enumerate(result.moves):
-            _persist(conn, recorder, row, move, slot)
+            _persist(conn, recorder, row, move, slot, taxonomy=taxonomy)
 
         _mark(conn, row["id"], "extracted")
         conn.commit()
@@ -226,6 +229,64 @@ def _record_llm_call(conn, recorder: RunRecorder, row, result) -> None:
             result.error is None, result.error,
         ),
     )
+
+
+def _classify(conn, move_id, practice_text: str | None, taxonomy) -> bool:
+    """Assign exactly one primary practice group, plus up to two secondary.
+
+    Always assigns something. A move whose practice cannot be placed gets the
+    reserved `unclassified` node rather than no row, which is what keeps
+    unclassified records in the denominator of every chart and satisfies the
+    exactly-one-primary invariant the database enforces.
+
+    Returns True when the assignment needed a human's attention.
+    """
+    assignment = taxonomy.classify(practice_text)
+
+    ids = {}
+    for code in (assignment.primary, *assignment.secondary):
+        row = conn.execute(
+            "SELECT id FROM practice_groups WHERE taxonomy_version = %s AND code = %s",
+            (taxonomy.version, code),
+        ).fetchone()
+        if row is None:
+            raise ValueError(
+                f"taxonomy {taxonomy.version} has no node {code!r}; run "
+                f"`tracker taxonomy --load`"
+            )
+        ids[code] = row["id"]
+
+    conn.execute(
+        """
+        INSERT INTO move_practice_groups
+            (move_id, practice_group_id, taxonomy_version, is_primary,
+             confidence, assigned_by, rule_key)
+        VALUES (%s, %s, %s, true, %s, %s, %s)
+        ON CONFLICT (move_id, practice_group_id) DO NOTHING
+        """,
+        (move_id, ids[assignment.primary], taxonomy.version,
+         assignment.confidence, assignment.assigned_by, assignment.rule_key),
+    )
+    for code in assignment.secondary:
+        conn.execute(
+            """
+            INSERT INTO move_practice_groups
+                (move_id, practice_group_id, taxonomy_version, is_primary,
+                 confidence, assigned_by, rule_key)
+            VALUES (%s, %s, %s, false, %s, %s, %s)
+            ON CONFLICT (move_id, practice_group_id) DO NOTHING
+            """,
+            (move_id, ids[code], taxonomy.version,
+             assignment.confidence, assignment.assigned_by, assignment.rule_key),
+        )
+
+    unplaced = assignment.primary == "unclassified"
+    conn.execute(
+        "UPDATE moves SET classification_state = %s, classified_taxonomy_version = %s "
+        "WHERE id = %s",
+        ("unclassified" if unplaced else "classified", taxonomy.version, move_id),
+    )
+    return unplaced
 
 
 def _resolve_firm(conn, name: str | None):
@@ -280,7 +341,9 @@ def _resolve_person(conn, name: str):
     return row["id"]
 
 
-def _persist(conn, recorder: RunRecorder, row, move: ExtractedMove, slot: int) -> None:
+def _persist(
+    conn, recorder: RunRecorder, row, move: ExtractedMove, slot: int, *, taxonomy=None
+) -> None:
     person_name = move.person_name
     if not person_name:
         return
@@ -360,6 +423,18 @@ def _persist(conn, recorder: RunRecorder, row, move: ExtractedMove, slot: int) -
             (move_id, row["id"], evidence_name, verified.span_start,
              verified.span_end, verified.value, verified.excerpt or verified.value),
         )
+
+    if taxonomy is not None:
+        unplaced = _classify(conn, move_id, move.value("practice_text"), taxonomy)
+        if unplaced and not needs_review:
+            # An unplaceable practice is a judgement call, not a failure. It
+            # goes to a human, and the resolution should grow the mapping file.
+            conn.execute(
+                "INSERT INTO review_queue (move_id, reason, detail) "
+                "VALUES (%s, 'unclassified_practice', %s) ON CONFLICT DO NOTHING",
+                (move_id, _json({"practice_text": move.value("practice_text")})),
+            )
+            recorder.moves_queued_for_review += 1
 
     if needs_review:
         reason = "low_confidence"

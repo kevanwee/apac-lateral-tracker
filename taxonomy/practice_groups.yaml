@@ -1,0 +1,102 @@
+# Practice group taxonomy — a fixed, versioned artifact.
+#
+# The model never invents a node. Classification either maps to a code in this
+# file or lands on `unclassified` and enters review. Changing this file means
+# cutting a new version: historical assignments keep the version that made
+# them, so a retaxonomy cannot silently rewrite past trend lines.
+#
+# Two levels, aligned broadly to Chambers and Legal 500 conventions so the
+# output is comparable with external market data.
+#
+# `unclassified` is a real node, not a null. A move the classifier cannot place
+# still carries a primary group, which keeps it in the denominator of every
+# chart instead of quietly disappearing from it.
+#
+# Sectors live in sectors.yaml and are a separate axis. A fintech regulatory
+# partner is Financial Services Regulatory with sector Financial Services —
+# collapsing the two destroys the ability to answer whether growth is in the
+# practice or in the sector.
+
+version: 1.0.0
+notes: >-
+  Initial taxonomy. Structure follows the brief; codes are stable identifiers
+  and should outlive display-name changes.
+
+groups:
+  - code: corporate
+    name: Corporate
+    children:
+      - {code: corporate.m_and_a, name: M&A}
+      - {code: corporate.private_equity, name: Private Equity}
+      - {code: corporate.venture_capital, name: Venture Capital and Emerging Companies}
+      - {code: corporate.governance, name: Corporate Governance and Advisory}
+
+  - code: finance
+    name: Finance
+    children:
+      - {code: finance.banking, name: Banking and Leveraged Finance}
+      - {code: finance.ecm, name: Capital Markets (ECM)}
+      - {code: finance.dcm, name: Capital Markets (DCM)}
+      - {code: finance.structured, name: Structured Finance and Securitisation}
+      - {code: finance.funds, name: Funds and Asset Management}
+      - {code: finance.restructuring, name: Restructuring and Insolvency}
+
+  - code: disputes
+    name: Disputes
+    children:
+      - {code: disputes.commercial_litigation, name: Commercial Litigation}
+      - {code: disputes.international_arbitration, name: International Arbitration}
+      - {code: disputes.white_collar, name: White Collar and Investigations}
+      - {code: disputes.competition, name: Competition and Antitrust}
+      - {code: disputes.class_actions, name: Class Actions}
+
+  - code: regulatory
+    name: Regulatory
+    children:
+      - {code: regulatory.financial_services, name: Financial Services Regulatory}
+      - {code: regulatory.data_protection, name: Data Protection and Privacy}
+      - {code: regulatory.cybersecurity, name: Cybersecurity}
+      - {code: regulatory.esg, name: ESG and Sustainability}
+      - {code: regulatory.trade_sanctions, name: Trade and Sanctions}
+
+  - code: intellectual_property
+    name: Intellectual Property
+    children:
+      - {code: intellectual_property.patents, name: Patents and Life Sciences IP}
+      - {code: intellectual_property.trade_marks, name: Trade Marks and Brand Protection}
+      - {code: intellectual_property.litigation, name: IP Litigation}
+      - {code: intellectual_property.tech_transactions, name: Technology Transactions and Licensing}
+
+  - code: real_assets
+    name: Real Assets
+    children:
+      - {code: real_assets.real_estate, name: Real Estate}
+      - {code: real_assets.construction, name: Construction}
+      - {code: real_assets.projects, name: Projects and Infrastructure}
+      - {code: real_assets.energy, name: Energy and Natural Resources}
+
+  - code: employment
+    name: Employment
+    children:
+      - {code: employment.employment_and_labour, name: Employment and Labour}
+      - {code: employment.executive_comp, name: Executive Compensation and Benefits}
+
+  - code: tax
+    name: Tax
+    children:
+      - {code: tax.corporate_tax, name: Corporate Tax}
+      - {code: tax.transfer_pricing, name: Transfer Pricing and Tax Disputes}
+
+  - code: specialist
+    name: Specialist
+    children:
+      - {code: specialist.shipping_aviation, name: Shipping and Aviation}
+      - {code: specialist.insurance, name: Insurance}
+      - {code: specialist.private_client, name: Private Client and Wealth}
+      - {code: specialist.public_law, name: Public and Administrative Law}
+
+  # The reserved sentinel. Never remove it: "exactly one primary practice
+  # group per move" is enforced in the database and depends on this existing.
+  - code: unclassified
+    name: Unclassified
+    unclassified: true

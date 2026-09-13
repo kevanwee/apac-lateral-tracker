@@ -130,6 +130,28 @@ def sources_sync() -> None:
     click.echo(f"{upserted} source(s) synced, {deactivated} deactivated")
 
 
+@cli.command("taxonomy")
+@click.option("--load", "do_load", is_flag=True, help="Load taxonomy/*.yaml into the database.")
+def taxonomy_cmd(do_load: bool) -> None:
+    """Show or load the practice group and sector taxonomy."""
+    from tracker.taxonomy import Taxonomy
+
+    tax = Taxonomy.load()
+    if not do_load:
+        click.echo(f"taxonomy {tax.version}: {len(tax.practice_groups)} practice "
+                   f"groups, {len(tax.sectors)} sectors, {len(tax._mappings)} mappings")
+        return
+
+    from tracker.pipeline import ingest as ingest_stage
+
+    with db.connect(direct=True) as conn:
+        try:
+            version, groups, sectors = ingest_stage.sync_taxonomy(conn)
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+    click.echo(f"taxonomy {version} loaded: {groups} practice groups, {sectors} sectors")
+
+
 @cli.command("firms")
 @click.option("--sync", "do_sync", is_flag=True, help="Seed firms and aliases from config.")
 def firms_cmd(do_sync: bool) -> None:

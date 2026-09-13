@@ -43,19 +43,37 @@ import logging
 import re
 from dataclasses import dataclass
 
-from tracker.extract import body_rules, confidence
+from tracker.extract import body_rules, confidence, roles
 from tracker.extract.extractor import ExtractedMove, ExtractionResult
 from tracker.extract.spans import VerifiedField, _excerpt
 from tracker.firms import FirmGazetteer
+from tracker.geo import PlaceGazetteer
 from tracker.sources.base import RawItem
 
 log = logging.getLogger(__name__)
 
-RULES_VERSION = "rules/1.0.0"
+RULES_VERSION = "rules/2.0.0"
+
+# Loaded once: the place gazetteer is read-only and shared.
+PLACES = PlaceGazetteer.load()
 
 # A person slot: one to four words, no digits, no separators that would mean
 # the template has over-reached across a clause boundary.
-PERSON = r"(?P<person>[A-Za-z][\w'’-]*(?:\s+[A-Za-z][\w'’-]*){1,3})"
+_ONE_PERSON = r"[A-Za-z][\w'’-]*(?:\s+[A-Za-z][\w'’-]*){1,3}"
+PERSON = rf"(?P<person>{_ONE_PERSON})"
+# Two or more people sharing one verb. An article naming two partners is two
+# records, never one, so this is captured and then split.
+PEOPLE = (
+    rf"(?P<person>{_ONE_PERSON}(?:\s*,\s*{_ONE_PERSON})*"
+    rf"(?:\s*,?\s+and\s+{_ONE_PERSON})+)"
+)
+# One person or a list — for templates where either is normal.
+PEOPLE_OR_ONE = (
+    rf"(?P<person>{_ONE_PERSON}(?:\s*,\s*{_ONE_PERSON})*"
+    rf"(?:\s*,?\s+and\s+{_ONE_PERSON})*)"
+)
+# The role noun that precedes a trailing name.
+_TITLE_WORD = r"(?:partner|principal|counsel|lawyer|head|director|silk)"
 # A firm slot. "&" and "+" appear as standalone tokens ("Drew & Napier",
 # "Gilbert + Tobin"), so they need their own alternative — a character class
 # cannot match them, since every word must start with a letter. Lazy, so a
@@ -63,7 +81,9 @@ PERSON = r"(?P<person>[A-Za-z][\w'’-]*(?:\s+[A-Za-z][\w'’-]*){1,3})"
 _FIRM_WORD = r"(?:[&+]|[A-Za-z][\w'’.-]*)"
 FIRM_A = rf"(?P<firm_a>[A-Za-z][\w'’.-]*(?:\s+{_FIRM_WORD}){{0,5}}?)"
 FIRM_B = rf"(?P<firm_b>[A-Za-z][\w'’.-]*(?:\s+{_FIRM_WORD}){{0,5}})"
-TITLE = r"(?P<title>[\w\s'’-]{3,60}?)"
+# Ampersands and commas are common in a real role clause: "co-heads of Fraud,
+# Asset Recovery & Investigations". Excluding them silently dropped the record.
+TITLE = r"(?P<title>[\w\s'’&,.\-]{3,80}?)"
 PRACTICE = r"(?P<practice>[\w\s'’-]{3,40}?)"
 
 # Words that can never be part of a person's name. Every entry here was added
@@ -164,8 +184,30 @@ PARTNER_LEVEL_TITLE = re.compile(
     re.IGNORECASE,
 )
 
-# Ordered most specific first; the first template that matches wins.
+# Ordered most specific first; the first template that matches wins. The
+# multi-person forms lead, because their single-person twins would otherwise
+# match the last name in a list and silently drop the rest.
 TEMPLATES: list[tuple[str, str, str]] = [
+    # "Rajah & Tann Singapore names Avinash Pradhan and Vikna Rajah as
+    #  co-heads of South Asia Practice" -> two records.
+    ("names_people_as", "lateral",
+     rf"^{FIRM_A}\s+(?:names?|appoints?|welcomes?|elevates?|promotes?|hires?|adds?)"
+     rf"\s+{PEOPLE}\s+(?:as|to)\s+{TITLE}$"),
+    ("people_join_as", "lateral",
+     rf"^{PEOPLE}\s+(?:re)?joins?\s+{FIRM_A}(?:\s+as\s+{TITLE})?$"),
+    # "Rajah & Tann Strengthens Aviation and Asset Finance Practice with New
+    #  Partner Michelle Zheng" — the name trails the whole sentence. Common in
+    #  firm announcements, which lead with the practice, not the person.
+    ("firm_with_new_partner", "lateral",
+     rf"^{FIRM_A}\s+[^.]{{0,90}}?\bwith\s+(?:its\s+|the\s+)?(?:new\s+)?"
+     rf"(?:{_TITLE_WORD})s?\s+{PEOPLE_OR_ONE}$"),
+    # "... expands corporate practice, hires leading lawyer Raymond Tong"
+    ("firm_hires_named", "lateral",
+     rf"^{FIRM_A}\s+[^.]{{0,90}}?\b(?:hires?|recruits?|welcomes?|appoints?|adds?)"
+     rf"\s+(?:leading\s+|senior\s+|veteran\s+|new\s+)?"
+     rf"(?:{_TITLE_WORD})s?\s+{PEOPLE_OR_ONE}$"),
+    ("people_join_from", "lateral",
+     rf"^{PEOPLE}\s+(?:re)?joins?\s+{FIRM_A}\s+from\s+{FIRM_B}\b"),
     # "X joins Firm A from Firm B"
     ("joins_from", "lateral",
      rf"^{PERSON}\s+(?:re)?joins?\s+{FIRM_A}\s+from\s+{FIRM_B}\b"),
@@ -253,15 +295,27 @@ class RuleExtractor:
             match = pattern.match(headline)
             if match is None:
                 continue
-            move = self._build(match, name, move_type, headline, item, reliability_tier)
-            if move is None:
+            # One headline can name several people, and each is its own move.
+            moves = [
+                built
+                for person in self._split_people(match.groupdict().get("person") or "")
+                if (
+                    built := self._build(
+                        match, name, move_type, headline, item,
+                        reliability_tier, person=person,
+                    )
+                )
+                is not None
+            ]
+            if not moves:
                 continue
-            # The headline gave us a person. The body usually knows where they
-            # came from, which the headline almost never says — so enrich
-            # rather than returning early.
-            self._enrich_from_body(move, headline, item, reliability_tier)
+            for move in moves:
+                # The headline gave us a person. The body usually knows where
+                # they came from, which the headline almost never says — so
+                # enrich rather than returning early.
+                self._enrich_from_body(move, headline, item, reliability_tier)
             result.is_movement = True
-            result.moves.append(move)
+            result.moves.extend(moves)
             return result
 
         # The headline named nobody. Most of them do not — the names are one
@@ -367,6 +421,12 @@ class RuleExtractor:
 
     # -- internals ---------------------------------------------------------
 
+    @staticmethod
+    def _split_people(blob: str) -> list[str]:
+        """One record per person. "A and B" is two moves, never one."""
+        parts = re.split(r"\s*,\s*|\s+and\s+", blob)
+        return [p.strip() for p in parts if p.strip()]
+
     def _build(
         self,
         match: re.Match[str],
@@ -375,17 +435,23 @@ class RuleExtractor:
         headline: str,
         item: RawItem,
         reliability_tier: int,
+        person: str | None = None,
     ) -> ExtractedMove | None:
         groups = match.groupdict()
 
-        person = _strip_honorific((groups.get("person") or "").strip())
+        person = _strip_honorific((person or groups.get("person") or "").strip())
         if not _looks_like_a_person(person, self.gazetteer):
             log.debug("%s: %r is not a person, abstaining", rule_name, person)
             return None
 
-        # A captured title that is not partner-level means this is a different
-        # kind of appointment, not a move we track.
-        title = (groups.get("title") or "").strip()
+        # The captured clause carries three facts, not one: a title, a practice
+        # area and often a location. Stored whole it is a bad title and two
+        # missing fields.
+        role = roles.parse(groups.get("title"), PLACES)
+        title = role.title or ""
+        if groups.get("title") and not title:
+            # A clause with no recognisable title is not a partner appointment.
+            return None
         if title and not PARTNER_LEVEL_TITLE.search(title):
             log.debug("%s: %r is not a partner-level title, abstaining", rule_name, title)
             return None
@@ -394,6 +460,13 @@ class RuleExtractor:
         # guessed firm is exactly the kind of record this project must not make.
         to_firm = self._firm(groups.get("firm_a"))
         from_firm = self._firm(groups.get("firm_b"))
+
+        # A lazy firm group can stop short — "Rajah & Tann Strengthens ..."
+        # captures just "Rajah", which resolves to nothing. The gazetteer's own
+        # scan of the headline finds the full name and its direction.
+        if to_firm is None:
+            to_firm, paired_origin = body_rules.firm_pair(headline, self.gazetteer)
+            from_firm = from_firm or paired_origin
         if to_firm is None:
             return None
         if groups.get("firm_b") and from_firm is None:
@@ -415,7 +488,27 @@ class RuleExtractor:
                 literal=False,
             )
         if title:
-            self._add(fields, "title_to", title, headline, match, "title")
+            self._add(fields, "title_to", title, headline, match, "title", literal=False)
+        if role.practice:
+            self._add(
+                fields, "practice_text", role.practice, headline, match, "title",
+                literal=False,
+            )
+        if role.jurisdiction:
+            self._add(
+                fields, "office_jurisdiction", role.jurisdiction, headline, match,
+                "title", literal=False,
+            )
+        # The headline as a whole may name the office even when the role clause
+        # does not: "... as a partner in hong kong".
+        if "office_jurisdiction" not in fields:
+            from_headline = PLACES.find(headline)
+            if from_headline:
+                fields["office_jurisdiction"] = VerifiedField(
+                    name="office_jurisdiction", value=from_headline,
+                    span_start=0, span_end=len(headline), quality="recovered",
+                    excerpt=_excerpt(headline, 0, len(headline)),
+                )
         if groups.get("practice"):
             self._add(
                 fields, "practice_text", groups["practice"].strip(), headline, match, "practice"

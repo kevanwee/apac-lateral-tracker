@@ -341,3 +341,64 @@ def _insert_item(
         ),
     ).fetchone()
     return result is not None
+
+
+def sync_taxonomy(conn: psycopg.Connection) -> tuple[str, int, int]:
+    """Load taxonomy/*.yaml into the database. Returns (version, groups, sectors).
+
+    A version is immutable once loaded: if the files have changed, the checksum
+    will not match and the load is refused. Cut a new version instead — every
+    historical assignment keeps the version that made it, which is what stops a
+    retaxonomy silently rewriting past trend lines.
+    """
+    from tracker.taxonomy import Taxonomy
+
+    tax = Taxonomy.load()
+
+    existing = conn.execute(
+        "SELECT checksum FROM taxonomy_versions WHERE version = %s", (tax.version,)
+    ).fetchone()
+    if existing:
+        if bytes(existing["checksum"]) != tax.checksum:
+            raise ValueError(
+                f"taxonomy {tax.version} is already loaded with different content. "
+                f"A released version is immutable — bump the version in "
+                f"taxonomy/practice_groups.yaml, sectors.yaml and "
+                f"taxonomy_mappings.yaml instead of editing it in place."
+            )
+        return tax.version, len(tax.practice_groups), len(tax.sectors)
+
+    conn.execute(
+        "INSERT INTO taxonomy_versions (version, checksum, notes, is_current) "
+        "VALUES (%s, %s, %s, true)",
+        (tax.version, tax.checksum, "loaded by tracker taxonomy load"),
+    )
+    conn.execute(
+        "UPDATE taxonomy_versions SET is_current = false WHERE version <> %s",
+        (tax.version,),
+    )
+
+    # Parents first, so a child's composite FK to its parent resolves.
+    for table, nodes in (("practice_groups", tax.practice_groups), ("sectors", tax.sectors)):
+        ids: dict[str, str] = {}
+        for node in sorted(nodes, key=lambda n: n.level):
+            extra = ", is_unclassified" if table == "practice_groups" else ""
+            values = ", %s" if table == "practice_groups" else ""
+            row = conn.execute(
+                f"""
+                INSERT INTO {table}
+                    (taxonomy_version, code, name, level, parent_id, sort_order{extra})
+                VALUES (%s, %s, %s, %s, %s, %s{values})
+                RETURNING id
+                """,
+                (
+                    tax.version, node.code, node.name, node.level,
+                    ids.get(node.parent) if node.parent else None,
+                    len(ids),
+                    *((node.is_unclassified,) if table == "practice_groups" else ()),
+                ),
+            ).fetchone()
+            ids[node.code] = row["id"]
+
+    conn.commit()
+    return tax.version, len(tax.practice_groups), len(tax.sectors)

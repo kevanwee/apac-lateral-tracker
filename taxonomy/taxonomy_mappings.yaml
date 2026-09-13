@@ -1,0 +1,204 @@
+# Trade press phrasing -> taxonomy node.
+#
+# This file is what makes classification deterministic and free. Where a
+# phrase here matches the practice text an article actually used, no model is
+# invoked at all. The model is reserved for genuinely ambiguous cases, and this
+# file is meant to grow from review queue resolutions so the system gets
+# cheaper and more deterministic over time.
+#
+# Matching is longest-phrase-first over a lowercased, punctuation-stripped
+# form, so "private equity" wins over "equity" and "capital markets" over
+# "capital".
+#
+# `secondary` is optional and capped at two by the database. Use it where a
+# compound phrase genuinely spans two groups — "finance and projects" is
+# projects work funded by a finance team, not one or the other.
+#
+# Every `primary` and `secondary` must be a code in practice_groups.yaml, or
+# loading fails. There is no way to name a node that does not exist.
+
+version: 1.0.0
+taxonomy_version: 1.0.0
+
+mappings:
+  # --- Corporate ---------------------------------------------------------
+  - {match: mergers and acquisitions, primary: corporate.m_and_a}
+  - {match: m&a, primary: corporate.m_and_a}
+  - {match: ma, primary: corporate.m_and_a}
+  - {match: corporate and m&a, primary: corporate.m_and_a}
+  - {match: transactional, primary: corporate.m_and_a}
+  - {match: dealmaking, primary: corporate.m_and_a}
+  - {match: private equity, primary: corporate.private_equity}
+  - {match: buyouts, primary: corporate.private_equity}
+  - {match: venture capital, primary: corporate.venture_capital}
+  - {match: emerging companies, primary: corporate.venture_capital}
+  - {match: startups, primary: corporate.venture_capital}
+  - {match: corporate governance, primary: corporate.governance}
+  - {match: company secretarial, primary: corporate.governance}
+  - {match: corporate advisory, primary: corporate.governance}
+  - {match: corporate, primary: corporate.governance}
+  - {match: commercial, primary: corporate.governance}
+
+  # --- Finance -----------------------------------------------------------
+  - {match: banking and finance, primary: finance.banking}
+  - {match: leveraged finance, primary: finance.banking}
+  - {match: acquisition finance, primary: finance.banking}
+  - {match: banking, primary: finance.banking}
+  - {match: equity capital markets, primary: finance.ecm}
+  - {match: debt capital markets, primary: finance.dcm}
+  - {match: capital markets, primary: finance.ecm, secondary: [finance.dcm]}
+  - {match: securitisation, primary: finance.structured}
+  - {match: securitization, primary: finance.structured}
+  - {match: structured finance, primary: finance.structured}
+  - {match: derivatives, primary: finance.structured}
+  - {match: funds and asset management, primary: finance.funds}
+  - {match: investment funds, primary: finance.funds}
+  - {match: asset management, primary: finance.funds}
+  - {match: funds, primary: finance.funds}
+  - {match: restructuring and insolvency, primary: finance.restructuring}
+  - {match: restructuring, primary: finance.restructuring}
+  - {match: insolvency, primary: finance.restructuring}
+  - {match: turnaround, primary: finance.restructuring}
+  # Compound: the brief's own worked example.
+  - {match: finance and projects, primary: real_assets.projects, secondary: [finance.banking]}
+  - {match: projects and finance, primary: real_assets.projects, secondary: [finance.banking]}
+
+  # --- Disputes ----------------------------------------------------------
+  - {match: international arbitration, primary: disputes.international_arbitration}
+  - {match: arbitration, primary: disputes.international_arbitration}
+  - {match: commercial litigation, primary: disputes.commercial_litigation}
+  - {match: commercial disputes, primary: disputes.commercial_litigation}
+  - {match: dispute resolution, primary: disputes.commercial_litigation}
+  - {match: litigation and dispute resolution, primary: disputes.commercial_litigation}
+  - {match: disputes, primary: disputes.commercial_litigation}
+  - {match: litigation, primary: disputes.commercial_litigation}
+  - {match: white collar, primary: disputes.white_collar}
+  - {match: white-collar, primary: disputes.white_collar}
+  - {match: white-collar defence and investigations, primary: disputes.white_collar}
+  - {match: fraud asset recovery & investigations, primary: disputes.white_collar}
+  - {match: fraud and asset recovery, primary: disputes.white_collar}
+  - {match: asset recovery, primary: disputes.white_collar}
+  - {match: investigations, primary: disputes.white_collar}
+  - {match: financial crime, primary: disputes.white_collar}
+  - {match: anti-bribery, primary: disputes.white_collar}
+  - {match: antitrust and competition, primary: disputes.competition}
+  - {match: competition and antitrust, primary: disputes.competition}
+  - {match: antitrust, primary: disputes.competition}
+  - {match: competition, primary: disputes.competition}
+  - {match: class actions, primary: disputes.class_actions}
+  - {match: group litigation, primary: disputes.class_actions}
+
+  # --- Regulatory --------------------------------------------------------
+  - {match: financial services regulatory, primary: regulatory.financial_services}
+  - {match: financial regulation, primary: regulatory.financial_services}
+  - {match: financial services, primary: regulatory.financial_services}
+  - {match: regulatory and compliance, primary: regulatory.financial_services}
+  - {match: compliance, primary: regulatory.financial_services}
+  - {match: data protection and privacy, primary: regulatory.data_protection}
+  - {match: data protection, primary: regulatory.data_protection}
+  - {match: data privacy, primary: regulatory.data_protection}
+  - {match: privacy, primary: regulatory.data_protection}
+  - {match: cybersecurity, primary: regulatory.cybersecurity}
+  - {match: cyber, primary: regulatory.cybersecurity}
+  - {match: esg and sustainability, primary: regulatory.esg}
+  - {match: sustainability, primary: regulatory.esg}
+  - {match: esg, primary: regulatory.esg}
+  - {match: climate change, primary: regulatory.esg}
+  - {match: trade and sanctions, primary: regulatory.trade_sanctions}
+  - {match: international trade disputes, primary: regulatory.trade_sanctions, secondary: [disputes.international_arbitration]}
+  - {match: international trade, primary: regulatory.trade_sanctions}
+  - {match: sanctions, primary: regulatory.trade_sanctions}
+  - {match: customs, primary: regulatory.trade_sanctions}
+
+  # --- Intellectual Property --------------------------------------------
+  - {match: patents and life sciences, primary: intellectual_property.patents}
+  - {match: life sciences, primary: intellectual_property.patents}
+  - {match: patents, primary: intellectual_property.patents}
+  - {match: patent, primary: intellectual_property.patents}
+  - {match: trade marks and brand protection, primary: intellectual_property.trade_marks}
+  - {match: trade marks, primary: intellectual_property.trade_marks}
+  - {match: trademarks, primary: intellectual_property.trade_marks}
+  - {match: brand protection, primary: intellectual_property.trade_marks}
+  - {match: ip litigation, primary: intellectual_property.litigation}
+  - {match: technology transactions, primary: intellectual_property.tech_transactions}
+  - {match: licensing, primary: intellectual_property.tech_transactions}
+  - {match: licencing, primary: intellectual_property.tech_transactions}
+  # Bare "IP" is genuinely ambiguous between the four children, so it maps to
+  # the parent rather than guessing one.
+  - {match: intellectual property, primary: intellectual_property}
+  - {match: ip, primary: intellectual_property}
+
+  # --- Real Assets -------------------------------------------------------
+  - {match: real estate, primary: real_assets.real_estate}
+  - {match: property litigation, primary: real_assets.real_estate, secondary: [disputes.commercial_litigation]}
+  - {match: property, primary: real_assets.real_estate}
+  - {match: construction, primary: real_assets.construction}
+  - {match: contentious construction, primary: real_assets.construction, secondary: [disputes.commercial_litigation]}
+  - {match: projects and infrastructure, primary: real_assets.projects}
+  - {match: projects and government commercial, primary: real_assets.projects}
+  - {match: infrastructure, primary: real_assets.projects}
+  - {match: projects, primary: real_assets.projects}
+  - {match: energy and infrastructure, primary: real_assets.energy, secondary: [real_assets.projects]}
+  - {match: energy and natural resources, primary: real_assets.energy}
+  - {match: natural resources, primary: real_assets.energy}
+  - {match: energy, primary: real_assets.energy}
+  - {match: mining, primary: real_assets.energy}
+  - {match: oil and gas, primary: real_assets.energy}
+
+  # --- Employment --------------------------------------------------------
+  - {match: employment and labour, primary: employment.employment_and_labour}
+  - {match: employment and safety, primary: employment.employment_and_labour}
+  - {match: workplace relations, primary: employment.employment_and_labour}
+  - {match: workplace advisory, primary: employment.employment_and_labour}
+  - {match: workplace, primary: employment.employment_and_labour}
+  - {match: employee relations, primary: employment.employment_and_labour}
+  - {match: industrial relations, primary: employment.employment_and_labour}
+  - {match: employment, primary: employment.employment_and_labour}
+  - {match: labour, primary: employment.employment_and_labour}
+  - {match: executive compensation, primary: employment.executive_comp}
+  - {match: employee benefits, primary: employment.executive_comp}
+  - {match: pensions, primary: employment.executive_comp}
+
+  # --- Tax ---------------------------------------------------------------
+  - {match: transfer pricing, primary: tax.transfer_pricing}
+  - {match: tax disputes, primary: tax.transfer_pricing, secondary: [disputes.commercial_litigation]}
+  - {match: transactional tax, primary: tax.corporate_tax}
+  - {match: corporate tax, primary: tax.corporate_tax}
+  - {match: tax, primary: tax.corporate_tax}
+
+  # --- Specialist --------------------------------------------------------
+  - {match: shipping and insurance, primary: specialist.shipping_aviation, secondary: [specialist.insurance]}
+  - {match: aviation and asset finance, primary: specialist.shipping_aviation, secondary: [finance.banking]}
+  - {match: shipping and aviation, primary: specialist.shipping_aviation}
+  - {match: marine, primary: specialist.shipping_aviation}
+  - {match: shipping, primary: specialist.shipping_aviation}
+  - {match: aviation, primary: specialist.shipping_aviation}
+  - {match: insurance, primary: specialist.insurance}
+  - {match: reinsurance, primary: specialist.insurance}
+  - {match: private client and wealth, primary: specialist.private_client}
+  - {match: private client, primary: specialist.private_client}
+  - {match: private wealth, primary: specialist.private_client}
+  - {match: luxury assets, primary: specialist.private_client}
+  - {match: trusts and estates, primary: specialist.private_client}
+  - {match: public and administrative law, primary: specialist.public_law}
+  - {match: administrative law, primary: specialist.public_law}
+  - {match: public law, primary: specialist.public_law}
+  - {match: health law, primary: specialist.public_law}
+  - {match: immigration, primary: specialist.public_law}
+
+# Phrases that look like a practice and are not. Matching one yields
+# `unclassified` rather than a wrong node — a firm-wide role is not a practice.
+not_a_practice:
+  - pro bono
+  - diversity
+  - diversity and inclusion
+  - business development
+  - knowledge management
+  - talent
+  - operations
+  - innovation
+  - transformation
+  - wellbeing
+  - marketing
+  - finance team
+  - information technology

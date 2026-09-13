@@ -1,0 +1,111 @@
+# Place gazetteer: what an article says -> the jurisdiction code we store.
+#
+# Trade press writes offices, not ISO codes: "a partner in its Sydney office",
+# "joins in Hong Kong", "the firm's New York office". Without this mapping
+# office_jurisdiction is null on every record, which makes the depth-market
+# filter (SG / HK / AU) useless — and those are the markets this project exists
+# to cover.
+#
+# Every code must exist in the `jurisdictions` table, or the sync fails loudly.
+# Adding a market is an entry here plus, if new, a jurisdictions migration.
+#
+# Ordering matters for ambiguity: longer keys are matched first, so
+# "Kansas City" wins over "Kansas" and "Hong Kong" is never read as "Hong".
+
+version: 1
+
+places:
+  # --- Singapore ---------------------------------------------------------
+  SG: [Singapore]
+
+  # --- Hong Kong / Greater China ----------------------------------------
+  HK: [Hong Kong, HK SAR, Hongkong]
+  MO: [Macau, Macao]
+  CN: [
+    Mainland China, China, Shanghai, Beijing, Peking, Shenzhen, Guangzhou,
+    Chengdu, Hangzhou, Qingdao, Tianjin, Nanjing, Wuhan, Suzhou,
+  ]
+  TW: [Taiwan, Taipei]
+
+  # --- Australia ---------------------------------------------------------
+  # State codes where the city identifies one, country code otherwise.
+  AU-NSW: [Sydney, New South Wales, NSW]
+  AU-VIC: [Melbourne, Victoria]
+  AU-QLD: [Brisbane, Queensland, Gold Coast, Cairns, Townsville]
+  AU-WA:  [Perth, Western Australia]
+  AU-SA:  [Adelaide, South Australia]
+  AU-ACT: [Canberra, Australian Capital Territory]
+  AU-TAS: [Hobart, Tasmania, Launceston]
+  AU-NT:  [Darwin, Northern Territory]
+  AU: [Australia, Australian, Asia Pacific region]
+
+  NZ: [New Zealand, Auckland, Wellington, Christchurch]
+
+  # --- North Asia --------------------------------------------------------
+  JP: [Japan, Tokyo, Osaka, Nagoya]
+  KR: [South Korea, Korea, Seoul, Busan]
+
+  # --- South and Southeast Asia -----------------------------------------
+  IN: [India, Mumbai, Bombay, New Delhi, Delhi, Bangalore, Bengaluru,
+       Chennai, Hyderabad, Gurgaon, Gurugram, Pune, Kolkata]
+  ID: [Indonesia, Jakarta, Surabaya]
+  MY: [Malaysia, Kuala Lumpur, Penang, Johor Bahru]
+  TH: [Thailand, Bangkok, Phuket]
+  VN: [Vietnam, Hanoi, Ho Chi Minh City, Ho Chi Minh, Saigon, Da Nang]
+  PH: [Philippines, Manila, Makati, Cebu]
+  KH: [Cambodia, Phnom Penh]
+  LA: [Laos, Vientiane]
+  MM: [Myanmar, Burma, Yangon, Rangoon]
+  BN: [Brunei, Bandar Seri Begawan]
+  BD: [Bangladesh, Dhaka]
+  LK: [Sri Lanka, Colombo]
+  PK: [Pakistan, Karachi, Lahore, Islamabad]
+  MN: [Mongolia, Ulaanbaatar]
+
+  # --- Middle East -------------------------------------------------------
+  AE: [United Arab Emirates, UAE, Dubai, Abu Dhabi]
+  SA: [Saudi Arabia, Riyadh, Jeddah, Saudi]
+  QA: [Qatar, Doha]
+
+  # --- Europe ------------------------------------------------------------
+  GB: [United Kingdom, UK, Britain, London, Manchester, Birmingham, Leeds,
+       Bristol, Edinburgh, Glasgow, Belfast, Cardiff, Aberdeen]
+  IE: [Ireland, Dublin]
+  GI: [Gibraltar]
+  DE: [Germany, Frankfurt, Munich, Munchen, Berlin, Hamburg, Dusseldorf,
+       Düsseldorf, Cologne, Stuttgart]
+  FR: [France, Paris, Lyon, Marseille]
+  NL: [Netherlands, Amsterdam, Rotterdam, The Hague]
+  BE: [Belgium, Brussels, Antwerp]
+  LU: [Luxembourg]
+  CH: [Switzerland, Zurich, Geneva, Basel]
+  ES: [Spain, Madrid, Barcelona]
+  IT: [Italy, Milan, Rome]
+  ZA: [South Africa, Johannesburg, Cape Town]
+
+  # --- Americas ----------------------------------------------------------
+  US: [United States, USA, US, America, Americas, New York, NYC, Manhattan,
+       Los Angeles, LA, Chicago, Washington, Washington DC, Boston,
+       San Francisco, Silicon Valley, Palo Alto, Houston, Dallas, Austin,
+       Atlanta, Miami, Seattle, Denver, Philadelphia, Delaware, California,
+       Texas, Florida, New Jersey, Connecticut]
+  CA: [Canada, Toronto, Vancouver, Montreal, Calgary]
+  MX: [Mexico, Mexico City, Monterrey, Guadalajara]
+  BR: [Brazil, Sao Paulo, São Paulo, Rio de Janeiro]
+
+# Words that look like places but are not jurisdictions we track. Listed so
+# the matcher skips them rather than mapping them to something wrong.
+not_places:
+  - Asia
+  - Asia Pacific
+  - APAC
+  - EMEA
+  - Europe
+  - Middle East
+  - Latin America
+  - Global
+  - International
+  - Worldwide
+  - South Asia
+  - Southeast Asia
+  - North America
