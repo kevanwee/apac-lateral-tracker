@@ -181,3 +181,91 @@ def test_at_least_eight_practice_groups_are_represented():
 def test_gold_set_has_reached_its_target_size():
     live_moves = [m for r, m in all_moves() if r["provenance"] == "live_feed"]
     assert len(live_moves) >= 100
+
+
+# ---------------------------------------------------------------------------
+# Threshold calibration against the gold set
+# ---------------------------------------------------------------------------
+# These need no API key and no model. They ask a question the model cannot
+# affect: if extraction were flawless, what would the review queue look like?
+# If a perfect record still needs a human, the threshold is wrong whatever the
+# model does.
+
+SPANNED_FIELDS = [
+    "from_firm", "to_firm", "title_from", "title_to", "practice_text", "sector_text",
+]
+MAX_REVIEW_RATE = 0.15
+
+
+def perfect_confidence(record: dict, move: dict):
+    """What a flawless extraction of this gold record would score."""
+    from tracker.extract import confidence
+
+    present = {
+        f for f in confidence.COMPLETENESS_WEIGHTS
+        if move.get(f) is not None
+        and not (f == "partner_tier" and move[f] == "undisclosed")
+    }
+    spans = sum(
+        1 for f in [*SPANNED_FIELDS, "person_name", "office_jurisdiction", "move_type"]
+        if move.get(f) is not None
+    )
+    return confidence.score(
+        reliability_tier=record["reliability_tier"],
+        access_level=record["access_level"],
+        present_fields=present,
+        span_qualities=["exact"] * max(spans, 1),
+        self_reported=0.9,
+    )
+
+
+def test_every_gold_expectation_is_supported_by_the_available_text():
+    """A gold answer the text cannot support is asking the model to infer."""
+    from tracker.extract.spans import _find_verbatim
+
+    unsupported = []
+    for record in RECORDS:
+        text = record["headline"]
+        if record.get("text"):
+            text += "\n\n" + record["text"]
+        for move in record["expect"]["moves"]:
+            for field in ["person_name", *SPANNED_FIELDS]:
+                value = move.get(field)
+                if value and _find_verbatim(text, str(value)) is None:
+                    unsupported.append(f"{record['id']}.{field}={value!r}")
+    assert not unsupported, f"gold expects values absent from the text: {unsupported}"
+
+
+def test_a_perfect_extraction_stays_under_the_review_ceiling():
+    """Regression guard on a real miscalibration.
+
+    Completeness used to be 25% of the score, which penalised a record for
+    correctly returning null on a field the article never stated. That put 79%
+    of perfect extractions into the queue against a 15% ceiling.
+    """
+    from tracker.extract import confidence
+
+    scores = [perfect_confidence(r, m) for r, m in all_moves()]
+    reviewed = [c for c in scores if confidence.needs_review(c)]
+    rate = len(reviewed) / len(scores)
+    assert rate <= MAX_REVIEW_RATE, (
+        f"{rate:.0%} of flawless extractions would need a human "
+        f"(ceiling {MAX_REVIEW_RATE:.0%}); the thresholds are wrong, not the model"
+    )
+
+
+def test_thin_evidence_still_reaches_a_human():
+    """The ceiling must not have been met by accepting everything."""
+    from tracker.extract import confidence
+
+    for tier, access in [(3, "summary"), (2, "headline_only"), (3, "headline_only")]:
+        best_case = confidence.score(
+            reliability_tier=tier,
+            access_level=access,
+            present_fields=set(confidence.COMPLETENESS_WEIGHTS),
+            span_qualities=["exact"] * 6,
+            self_reported=1.0,
+        )
+        assert confidence.needs_review(best_case), (
+            f"tier {tier} / {access} auto-accepts even at its best case"
+        )

@@ -197,7 +197,7 @@ def test_a_headline_only_record_is_penalised():
 
 
 def test_the_model_cannot_talk_a_thin_record_over_the_line():
-    """Self-reported confidence is weighted at 10% for exactly this reason."""
+    """Self-reported confidence can only flag a low score, never raise one."""
     boastful = confidence.score(
         reliability_tier=3,
         access_level="headline_only",
@@ -303,3 +303,109 @@ def test_extraction_results_do_not_carry_article_text_forward():
         body_text="the full article body",
     )
     assert item.without_text().body_text is None
+
+
+# ---------------------------------------------------------------------------
+# Calibration
+# ---------------------------------------------------------------------------
+# Regression tests for a real miscalibration: completeness used to be 25% of
+# the score, which penalised a record for correctly reporting null on a field
+# the article never stated. Measured against the gold set, 79% of *perfect*
+# extractions were routed to review against a 15% ceiling.
+
+
+def test_a_sparse_but_reliable_record_is_accepted_without_review():
+    """"X succeeds Y, who is retiring" is thin and completely trustworthy."""
+    sparse = confidence.score(
+        reliability_tier=2,
+        access_level="summary",
+        present_fields=set(),  # no practice, no origin firm, no title
+        span_qualities=["exact", "exact"],
+        self_reported=0.9,
+    )
+    assert not confidence.needs_review(sparse), (
+        "a correctly-sparse record from established trade press must not "
+        "need a human"
+    )
+
+
+def test_richness_helps_but_its_absence_does_not_sink_a_record():
+    def at(fields):
+        return confidence.score(
+            reliability_tier=2,
+            access_level="summary",
+            present_fields=fields,
+            span_qualities=["exact"],
+            self_reported=0.9,
+        ).total
+
+    rich = at({"from_firm", "title_to", "office_jurisdiction", "practice_text"})
+    bare = at(set())
+    assert rich > bare
+    # The whole spread of completeness is worth less than the tier gap.
+    assert rich - bare <= confidence.COMPLETENESS_BONUS + 1e-9
+
+
+def test_fields_the_text_did_not_support_force_a_review_whatever_the_tier():
+    """Span verification already rejected them; that is the signal."""
+    components = confidence.score(
+        reliability_tier=1,
+        access_level="full_public",
+        present_fields={"from_firm", "practice_text"},
+        span_qualities=["exact", "exact", "exact"],
+        self_reported=0.99,
+        dropped_fields=2,
+    )
+    assert confidence.needs_review(components)
+    assert "without support" in components.forced_review_reason
+
+
+def test_one_dropped_field_costs_confidence_without_forcing_review():
+    clean = confidence.score(
+        reliability_tier=1, access_level="full_public",
+        present_fields={"from_firm"}, span_qualities=["exact"],
+        self_reported=0.9, dropped_fields=0,
+    )
+    slipped = confidence.score(
+        reliability_tier=1, access_level="full_public",
+        present_fields={"from_firm"}, span_qualities=["exact"],
+        self_reported=0.9, dropped_fields=1,
+    )
+    assert slipped.total < clean.total
+    assert slipped.forced_review_reason is None
+
+
+def test_model_self_doubt_forces_review_even_on_a_high_scoring_record():
+    """Self-reported confidence cannot raise a score, only flag a low one."""
+    components = confidence.score(
+        reliability_tier=1,
+        access_level="full_public",
+        present_fields={"from_firm", "practice_text", "office_jurisdiction"},
+        span_qualities=["exact"] * 4,
+        self_reported=0.45,
+    )
+    assert components.total > confidence.AUTO_ACCEPT_THRESHOLD
+    assert confidence.needs_review(components)
+    assert "low confidence" in components.forced_review_reason
+
+
+def test_a_tier_three_aggregator_never_enters_the_dataset_unreviewed():
+    best_case = confidence.score(
+        reliability_tier=3,
+        access_level="full_public",
+        present_fields=set(confidence.COMPLETENESS_WEIGHTS),
+        span_qualities=["exact"] * 6,
+        self_reported=1.0,
+    )
+    assert confidence.needs_review(best_case)
+
+
+def test_a_headline_only_item_always_needs_a_human():
+    best_case = confidence.score(
+        reliability_tier=2,
+        access_level="headline_only",
+        present_fields=set(confidence.COMPLETENESS_WEIGHTS),
+        span_qualities=["exact"] * 6,
+        self_reported=1.0,
+    )
+    assert confidence.needs_review(best_case)

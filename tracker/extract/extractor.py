@@ -55,7 +55,7 @@ class ExtractedMove:
 
     @property
     def needs_review(self) -> bool:
-        return confidence.needs_review(self.confidence.total)
+        return confidence.needs_review(self.confidence)
 
 
 @dataclass
@@ -263,6 +263,9 @@ class Extractor:
             present_fields=set(verified),
             span_qualities=[f.quality for f in verified.values()],
             self_reported=raw.get("self_confidence") or 0.0,
+            # Fields the model asserted and the text did not support. The
+            # strongest per-record signal that the reading is wrong.
+            dropped_fields=len(dropped),
         )
 
         return ExtractedMove(
