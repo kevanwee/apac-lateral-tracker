@@ -74,6 +74,6 @@ class Config:
                 os.environ.get("TRACKER_LLM_COST_CEILING_USD_PER_RUN", "5.00")
             ),
             extraction_model=os.environ.get(
-                "TRACKER_EXTRACTION_MODEL", "claude-sonnet-5"
+                "TRACKER_EXTRACTION_MODEL", "claude-opus-5"
             ),
         )
