@@ -96,6 +96,21 @@ ROLE_WORDS = {
     "veteran", "specialist", "expert", "trio", "duo", "pair",
 }
 
+# Regulator, agency and jurisdiction words. Trade press writes "Ex-SafeWork NSW
+# prosecutor joins Macpherson Kelley" — a whole identity with no name in it.
+# "ex" leads most of these, so it is the single most useful token here.
+PUBLIC_BODY_WORDS = {
+    "ex", "prosecutor", "regulator", "commissioner", "ombudsman", "inspector",
+    "adviser", "advisor", "judge", "magistrate", "registrar", "barrister",
+    "solicitor", "watchdog", "tribunal", "commission", "authority", "agency",
+    "department", "ministry", "treasury", "government", "federal", "state",
+    # Australian jurisdictions, which appear constantly in AU coverage.
+    "nsw", "qld", "vic", "wa", "sa", "act", "tas", "nt", "australian",
+    # Regulators that recur across APAC coverage.
+    "safework", "asic", "accc", "apra", "ato", "austrac", "agc", "mas",
+    "sfc", "sgx", "acra", "iras", "fca", "sec", "doj", "ftc",
+}
+
 # Quantities. "an even dozen" is not a person.
 QUANTITY_WORDS = {
     "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
@@ -132,7 +147,12 @@ PRACTICE_WORDS = {
 }
 
 NOT_A_PERSON = (
-    FUNCTION_WORDS | ROLE_WORDS | QUANTITY_WORDS | DESCRIPTOR_WORDS | PRACTICE_WORDS
+    FUNCTION_WORDS
+    | ROLE_WORDS
+    | QUANTITY_WORDS
+    | DESCRIPTOR_WORDS
+    | PRACTICE_WORDS
+    | PUBLIC_BODY_WORDS
 )
 
 # A captured title must be partner-level or this is not a movement we track.

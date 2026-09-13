@@ -158,6 +158,10 @@ MUST_ABSTAIN = [
         "Private equity experts re joins clifford chance as partner in london",
         "a practice description read as a name",
     ),
+    (
+        "Ex safework nsw prosecutor joins macpherson kelley as new principal lawyer",
+        "a regulator epithet read as a name; came out of the first database run",
+    ),
     # Not a partner-level appointment.
     (
         "Rajah & Tann appoints Clarisse Girot as advisor to data privacy practice",
