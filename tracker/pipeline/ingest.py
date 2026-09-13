@@ -104,7 +104,9 @@ def due_sources(conn: psycopg.Connection, *, only: str | None = None) -> list[di
         SELECT id, slug, reliability_tier, default_access_level
         FROM sources
         WHERE active
-          AND (%s IS NULL OR slug = %s)
+          -- Casts are required: Postgres cannot infer a bare parameter's type
+          -- from `IS NULL` alone.
+          AND (%s::text IS NULL OR slug = %s::text)
           AND (last_polled_at IS NULL OR last_polled_at + poll_interval <= now())
         ORDER BY last_polled_at NULLS FIRST
         """,
