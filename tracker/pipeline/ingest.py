@@ -13,7 +13,8 @@ from datetime import datetime
 import psycopg
 
 from tracker.firms import FirmGazetteer
-from tracker.gate import GATE_VERSION, evaluate
+from tracker.gate import GATE_VERSION, evaluate, evaluate_entity_slug
+from tracker.geo import PlaceGazetteer
 from tracker.net.client import PoliteClient, RobotsDisallowed
 from tracker.pipeline.runs import RunRecorder
 from tracker.sources import registry
@@ -286,10 +287,20 @@ def _ingest_one(
         )
         return
 
+    # Some outlets slug entities rather than the headline, so the language
+    # gate rejects every item. See gate.evaluate_entity_slug.
+    entity_mode = source.config.options.get("gate_mode") == "slug_entities"
+    gazetteers = (FirmGazetteer.load(), PlaceGazetteer.load()) if entity_mode else None
+
     for item in items:
-        decision = evaluate(
-            item.headline, item.body_text, reliability_tier=row["reliability_tier"]
-        )
+        if entity_mode:
+            decision = evaluate_entity_slug(
+                item.headline, *gazetteers, reliability_tier=row["reliability_tier"]
+            )
+        else:
+            decision = evaluate(
+                item.headline, item.body_text, reliability_tier=row["reliability_tier"]
+            )
         if decision.passed:
             gate_passed += 1
         if _insert_item(conn, row["id"], item, decision):

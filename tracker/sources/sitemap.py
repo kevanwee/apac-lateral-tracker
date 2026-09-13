@@ -103,6 +103,7 @@ class SitemapAdapter:
     def fetch(self, *, since: datetime | None = None) -> Iterable[RawItem]:
         opts = self.config.options
         include = re.compile(opts["include_pattern"]) if opts.get("include_pattern") else None
+        exclude = re.compile(opts["exclude_pattern"]) if opts.get("exclude_pattern") else None
         items: list[RawItem] = []
 
         for sitemap_url, known_year in self._sitemaps_to_read(since):
@@ -119,6 +120,8 @@ class SitemapAdapter:
             bulk = self._lastmod_is_bulk(entries)
             for url, lastmod in entries:
                 if include and not include.search(url):
+                    continue
+                if exclude and exclude.search(url):
                     continue
                 published, estimated = self._published(lastmod, known_year, bulk)
                 if since is not None and published < since and not estimated:

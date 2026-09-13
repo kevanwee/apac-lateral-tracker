@@ -234,3 +234,75 @@ def evaluate(
         return GateDecision(False, score, tuple(matched))
 
     return GateDecision(True, score, tuple(matched))
+
+
+# ---------------------------------------------------------------------------
+# Entity-shaped slugs
+# ---------------------------------------------------------------------------
+# Some outlets do not slug the headline. Asia Business Law Journal uses
+# {firm}-{person}-{city}:
+#
+#     law.asia/squire-patton-boggs-scott-crabb-perth/
+#     law.asia/dla-piper-jake-robson-singapore/
+#     law.asia/norton-rose-fulbright-hires-kate-jefferson-sydney/
+#
+# There is no verb, so the language gate above rejects every one of them — and
+# they are exactly the records this project wants. The signal here is not
+# wording but shape: a known firm and a known place in the same slug, with
+# room between them for a name.
+#
+# This is a candidate filter, not a decision. It is deliberately loose; the
+# article body is fetched afterwards and extraction stays strict.
+
+# Slug words that mean the piece is about a deal, an event or a survey rather
+# than a person. Checked before the entity shape, because those slugs also
+# carry a firm and a place.
+_NOT_A_MOVE_SLUG = _any(
+    r"\b(?:advises?|advised|acts?\s+for|acted|counsel\s+to)\b",
+    r"\b(?:financing|refinancing|acquisition|merger|ipo|listing|bond|issuance"
+    r"|offering|investment|fundraising|deal|transaction|joint\s+venture)\b",
+    r"\b(?:seminar|webinar|conference|forum|summit|awards?|survey|report"
+    r"|guide|rankings?|roundtable|briefing)\b",
+    r"\b(?:billing|rates|reform|regulation|guidelines|ruling|judgment)\b",
+    r"\b(?:opens?|launches?|office)\b",
+)
+
+
+def evaluate_entity_slug(
+    slug_text: str,
+    firms,
+    places,
+    *,
+    reliability_tier: int | None = None,
+) -> GateDecision:
+    """Gate a slug that names entities instead of describing an event.
+
+    `firms` and `places` are the gazetteers. Requiring both, plus at least one
+    unclaimed word between them for a name, keeps deal and event coverage out
+    without needing the article.
+    """
+    text = slug_text or ""
+    matched: list[str] = []
+
+    if _NOT_A_MOVE_SLUG.search(text):
+        return GateDecision(False, 0.0, ("deal_or_event",))
+
+    firm_hits = firms.find(text)
+    place = places.find(text)
+    if firm_hits:
+        matched.append("firm")
+    if place:
+        matched.append("place")
+
+    if not firm_hits or not place:
+        return GateDecision(False, 0.2 if matched else 0.0, tuple(matched))
+
+    # Room for a name: the firm and the place cannot account for every word.
+    firm_words = sum(len(m.matched_text.split()) for m in firm_hits)
+    place_words = len(place.split("-"))
+    spare = len(text.split()) - firm_words - place_words
+    if spare < 2:
+        return GateDecision(False, 0.3, (*matched, "no_room_for_a_name"))
+
+    matched.append("name_space")
+    return GateDecision(True, 0.6, tuple(matched))

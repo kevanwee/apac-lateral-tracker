@@ -105,11 +105,106 @@ sources:
     reliability_tier: 2
     access_level: summary
     jurisdiction_focus: [US, GB]
-    poll_interval_hours: 6
+    poll_interval_hours: 3
     terms_url: https://www.law.com/robots.txt
     html_access_reviewed_at: 2026-09-13
     html_access_reviewed_by: kevanwee
     terms_note: Same robots policy as Law.com International. Checked 2026-09-13.
+
+  # The rest of the ALM stable. Each title serves its own 20-item window, so
+  # adding titles is the only way to increase Law.com coverage — the feed does
+  # not paginate (?paged=2 returns the same 20 items, verified 2026-09-14) and
+  # the sitemaps its robots.txt declares all 404. Seven titles is 140 items per
+  # poll instead of 20.
+  - slug: law-com-corpcounsel
+    name: Corporate Counsel (ALM)
+    base_url: https://www.law.com
+    feed_url: https://www.law.com/corpcounsel/feed/
+    access_type: feed
+    adapter: feed
+    reliability_tier: 2
+    access_level: summary
+    jurisdiction_focus: [US, GB, SG, HK]
+    poll_interval_hours: 3
+    terms_url: https://www.law.com/robots.txt
+    html_access_reviewed_at: 2026-09-13
+    html_access_reviewed_by: kevanwee
+    terms_note: Same robots policy as Law.com International.
+    notes: In-house moves, which is where in_house_exit and in_house_entry come from.
+
+  - slug: law-com-national-law-journal
+    name: The National Law Journal (ALM)
+    base_url: https://www.law.com
+    feed_url: https://www.law.com/nationallawjournal/feed/
+    access_type: feed
+    adapter: feed
+    reliability_tier: 2
+    access_level: summary
+    jurisdiction_focus: [US]
+    poll_interval_hours: 3
+    terms_url: https://www.law.com/robots.txt
+    html_access_reviewed_at: 2026-09-13
+    html_access_reviewed_by: kevanwee
+    terms_note: Same robots policy as Law.com International.
+
+  - slug: law-com-the-recorder
+    name: The Recorder (ALM)
+    base_url: https://www.law.com
+    feed_url: https://www.law.com/therecorder/feed/
+    access_type: feed
+    adapter: feed
+    reliability_tier: 2
+    access_level: summary
+    jurisdiction_focus: [US]
+    poll_interval_hours: 3
+    terms_url: https://www.law.com/robots.txt
+    html_access_reviewed_at: 2026-09-13
+    html_access_reviewed_by: kevanwee
+    terms_note: Same robots policy as Law.com International.
+
+  - slug: law-com-new-york-law-journal
+    name: New York Law Journal (ALM)
+    base_url: https://www.law.com
+    feed_url: https://www.law.com/newyorklawjournal/feed/
+    access_type: feed
+    adapter: feed
+    reliability_tier: 2
+    access_level: summary
+    jurisdiction_focus: [US]
+    poll_interval_hours: 3
+    terms_url: https://www.law.com/robots.txt
+    html_access_reviewed_at: 2026-09-13
+    html_access_reviewed_by: kevanwee
+    terms_note: Same robots policy as Law.com International.
+
+  - slug: law-com-texas-lawyer
+    name: Texas Lawyer (ALM)
+    base_url: https://www.law.com
+    feed_url: https://www.law.com/texaslawyer/feed/
+    access_type: feed
+    adapter: feed
+    reliability_tier: 2
+    access_level: summary
+    jurisdiction_focus: [US]
+    poll_interval_hours: 6
+    terms_url: https://www.law.com/robots.txt
+    html_access_reviewed_at: 2026-09-13
+    html_access_reviewed_by: kevanwee
+    terms_note: Same robots policy as Law.com International.
+
+  - slug: legal-business
+    name: Legal Business
+    base_url: https://www.legalbusiness.co.uk
+    feed_url: https://www.legalbusiness.co.uk/feed
+    access_type: feed
+    adapter: feed
+    reliability_tier: 2
+    access_level: summary
+    jurisdiction_focus: [GB]
+    poll_interval_hours: 6
+    notes: >-
+      Named in the brief. Feed works; its sitemap.xml returned no entries on
+      2026-09-14, so live window only.
 
   # ---------------------------------------------------------------------
   # Archive enumeration — historical backfill only
@@ -172,6 +267,60 @@ sources:
       If this is ever re-enabled: lastmod is regenerated in bulk — thousands of
       URLs share one timestamp — so the adapter marks published_at estimated
       rather than believing it.
+
+  # ---------------------------------------------------------------------
+  # Asia Business Law Journal — the APAC archive
+  # ---------------------------------------------------------------------
+
+  - slug: asia-business-law-journal
+    name: Asia Business Law Journal
+    base_url: https://law.asia
+    feed_url: https://law.asia/feed
+    access_type: feed
+    adapter: feed
+    reliability_tier: 2
+    access_level: summary
+    jurisdiction_focus: [SG, HK, CN, JP, KR, IN, ID, MY, TH, VN, PH, TW, AU]
+    poll_interval_hours: 6
+    terms_url: https://law.asia/robots.txt
+    html_access_reviewed_at: 2026-09-14
+    html_access_reviewed_by: kevanwee
+    terms_note: >-
+      robots.txt declares Crawl-delay: 10 for all agents — exactly our floor —
+      and disallows only wp-admin, auth surfaces and internal search. Checked
+      2026-09-14.
+    notes: >-
+      The strongest APAC source found. Hong Kong, Singapore, China, Japan,
+      Korea, Indonesia coverage that no other reachable outlet provides.
+
+  - slug: asia-business-law-journal-archive
+    name: Asia Business Law Journal — archive
+    base_url: https://law.asia
+    access_type: feed
+    adapter: sitemap
+    reliability_tier: 2
+    access_level: headline_only
+    jurisdiction_focus: [SG, HK, CN, JP, KR, IN, ID, MY, TH, VN, PH, TW, AU]
+    poll_interval_hours: 2160
+    terms_url: https://law.asia/robots.txt
+    html_access_reviewed_at: 2026-09-14
+    html_access_reviewed_by: kevanwee
+    terms_note: Same robots policy as the live feed. Checked 2026-09-14.
+    options:
+      sitemap_url: https://law.asia/sitemap_index.xml
+      child_pattern: "post-sitemap"
+      # English articles sit at the root; /zh-hans/, /ja/, /ko/ and /zh-hant/
+      # are translations of the same pieces, so including them would duplicate
+      # every record in four languages.
+      exclude_pattern: 'law\.asia/(zh-hans|zh-hant|ja|ko)/'
+      max_sitemaps: 32
+      # This outlet slugs {firm}-{person}-{city} with no verb, so the language
+      # gate rejects every item. See gate.evaluate_entity_slug.
+      gate_mode: slug_entities
+    notes: >-
+      32 post-sitemaps, roughly 750 urls each. Slugs name entities rather than
+      describing the event, which is why this needs the entity gate and the
+      article body: the person is in the article, the firm and city in the URL.
 
   # ---------------------------------------------------------------------
   # Registered but not collected
