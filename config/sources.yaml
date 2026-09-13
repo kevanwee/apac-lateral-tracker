@@ -26,11 +26,16 @@ sources:
     base_url: https://www.rajahtannasia.com
     feed_url: https://www.rajahtannasia.com/feed
     access_type: feed
-    adapter: feed
+    adapter: paginated_feed
     reliability_tier: 1
     access_level: full_public
     jurisdiction_focus: [SG, MY, TH, ID, VN, PH, CN, LA, KH, MM]
     poll_interval_hours: 12
+    options:
+      # WordPress. Verified 2026-09-13: ?paged=15 reaches April 2020, giving
+      # roughly six years of tier-1 announcements with summaries intact.
+      page_param: paged
+      max_pages: 20
     notes: >-
       Regional network publishing member-firm announcements under several
       entity names (Rajah & Tann Singapore, AHP in Indonesia, R&T Thailand).
@@ -64,6 +69,53 @@ sources:
     notes: >-
       robots.txt disallows /au/business-news/ and /nz/business-news/; the
       client honours that, so some feed entries will be skipped by design.
+      The live RSS is litigation-heavy: 18 items sampled on 2026-09-13
+      contained no partner movement at all. Movement coverage is reached
+      through the sitemap source below.
+
+  # ---------------------------------------------------------------------
+  # Archive enumeration — historical backfill only
+  # ---------------------------------------------------------------------
+  # These read sitemaps, which is the index a site publishes for machines.
+  # They never fetch an article page. Headlines are rebuilt from URL slugs and
+  # are therefore lossy, so every item is headline_only and never
+  # auto-accepts. See tracker/sources/sitemap.py.
+
+  - slug: australasian-lawyer-archive
+    name: Australasian Lawyer — archive
+    base_url: https://www.thelawyermag.com
+    access_type: feed
+    adapter: sitemap
+    reliability_tier: 2
+    access_level: headline_only
+    jurisdiction_focus: [AU, NZ]
+    poll_interval_hours: 2160          # quarterly; this is not a live source
+    options:
+      # Year-partitioned, so a date window is honoured without reading
+      # anything. Verified 2026-09-13: 2019-2026, 850-1400 urls per year.
+      year_url_template: https://www.thelawyermag.com/au/sitemaps/articles/{year}
+      include_pattern: "/au/"
+      max_sitemaps: 12
+
+  - slug: global-legal-post-archive
+    name: The Global Legal Post — archive
+    base_url: https://www.globallegalpost.com
+    access_type: feed
+    adapter: sitemap
+    reliability_tier: 2
+    access_level: headline_only
+    jurisdiction_focus: [GB, US, SG, HK, AE]
+    poll_interval_hours: 2160
+    options:
+      sitemap_url: https://www.globallegalpost.com/sitemap.xml
+      child_pattern: "sitemap-posts"
+      include_pattern: "/news/"
+      max_sitemaps: 6
+    notes: >-
+      lastmod is regenerated in bulk — thousands of URLs share one timestamp —
+      so the adapter detects that and marks published_at estimated rather than
+      believing it. Dates from this source are unreliable until a corroborating
+      record supplies a real one.
 
   # ---------------------------------------------------------------------
   # Registered but not collected
@@ -85,5 +137,36 @@ sources:
       The origin returns 403 to our client for every path including
       /robots.txt (checked 2026-09-13). Phase 0 treats an unretrievable
       robots.txt as disallow, and we do not vary the User-Agent to get
-      around an edge block. Collection stays off until Key Media grants
-      access — a licensing question, not a technical one.
+      around an edge block. Use the newsletter source below instead, which
+      is lawful access ALB grants directly.
+
+  # ---------------------------------------------------------------------
+  # Newsletter — lawful access to an outlet that blocks crawlers
+  # ---------------------------------------------------------------------
+
+  - slug: alb-newsletter
+    name: Asian Legal Business — newsletter
+    base_url: https://www.legalbusinessonline.com
+    access_type: api
+    adapter: imap
+    reliability_tier: 2
+    access_level: headline_only
+    jurisdiction_focus: [SG, HK, CN, JP, KR, IN, MY, ID, TH, VN, PH, AU]
+    poll_interval_hours: 168
+    active: false          # turn on once the folder exists and creds are set
+    options:
+      host: imap.gmail.com
+      # Create this folder and filter the newsletter into it. The adapter
+      # reads only this folder, read-only, and never falls back to INBOX.
+      folder: legal-tracker/alb
+      from_allowlist:
+        - legalbusinessonline.com
+        - thomsonreuters.com
+      url_pattern: 'legalbusinessonline\.com/'
+      max_messages: 2000
+    notes: >-
+      ALB blocks our crawler, but sends its newsletter to subscribers. Reading
+      mail addressed to you is not circumvention. Depth depends entirely on how
+      far back your own subscription goes. Headlines come from the newsletter's
+      own link text, so they are real rather than reconstructed — but there is
+      no article body, hence headline_only.

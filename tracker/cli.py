@@ -7,6 +7,7 @@ re-running it on the same input must not create duplicate rows.
 from __future__ import annotations
 
 import sys
+from datetime import datetime
 
 import click
 
@@ -149,6 +150,107 @@ def ingest_cmd(since, only: str | None) -> None:
             f"fetched {recorder.items_fetched}, "
             f"gate rejected {recorder.items_gate_rejected}, "
             f"errors {recorder.errors}"
+        )
+
+
+@cli.command("backfill")
+@click.option("--since", type=click.DateTime(formats=["%Y-%m-%d"]), required=True,
+              help="Walk archives back to this date.")
+@click.option("--source", "only", default=None, help="Limit to one source slug.")
+def backfill_cmd(since, only: str | None) -> None:
+    """Load historical items from source archives.
+
+    Rate limited and resumable: re-running the same command continues where an
+    interrupted run stopped, because every insert is a no-op on a URL we
+    already hold.
+    """
+    from datetime import UTC
+
+    from tracker.net.client import PoliteClient
+    from tracker.pipeline import ingest as ingest_stage
+    from tracker.pipeline import runs
+
+    since = since.replace(tzinfo=UTC)
+    with db.connect(direct=True) as conn, PoliteClient() as client:
+        with runs.record(
+            conn, "backfill", params={"since": since.isoformat(), "source": only}
+        ) as recorder:
+            ingest_stage.backfill(
+                conn, recorder, client=client, since=since, only=only
+            )
+        click.echo(
+            f"fetched {recorder.items_fetched}, "
+            f"gate rejected {recorder.items_gate_rejected}, "
+            f"errors {recorder.errors}"
+        )
+        for row in conn.execute(
+            "SELECT slug, backfilled_to FROM sources "
+            "WHERE backfilled_to IS NOT NULL ORDER BY slug"
+        ).fetchall():
+            click.echo(f"  {row['slug']:32} back to {row['backfilled_to']}")
+
+
+@cli.command("catch-up")
+@click.option("--since", type=click.DateTime(formats=["%Y-%m-%d"]), default=None,
+              help="Override the window. Defaults to the last successful run.")
+@click.option("--extract/--no-extract", "do_extract", default=True,
+              help="Also run extraction over whatever the gate passed.")
+@click.option("--limit", type=int, default=None, help="Cap items extracted this run.")
+def catch_up_cmd(since, do_extract: bool, limit: int | None) -> None:
+    """Bring the record up to date. Run this every few months.
+
+    Live feeds plus source archives, then extraction. Every stage is
+    idempotent, so running it twice costs time and nothing else.
+    """
+    from datetime import UTC, timedelta
+
+    from tracker.config import Config
+    from tracker.extract.extractor import CostCeilingExceeded, CostLedger, Extractor
+    from tracker.net.client import PoliteClient
+    from tracker.pipeline import extract as extract_stage
+    from tracker.pipeline import ingest as ingest_stage
+    from tracker.pipeline import runs
+
+    with db.connect(direct=True) as conn, PoliteClient() as client:
+        if since is None:
+            last = conn.execute(
+                "SELECT max(started_at) AS t FROM pipeline_runs "
+                "WHERE stage IN ('ingest', 'backfill') AND status = 'succeeded'"
+            ).fetchone()["t"]
+            # Overlap the window deliberately: outlets publish late and the
+            # url constraint makes re-reading free.
+            window = (last - timedelta(days=14)) if last else None
+            since = window or (datetime.now(UTC) - timedelta(days=90))
+        else:
+            since = since.replace(tzinfo=UTC)
+        click.echo(f"catching up since {since:%Y-%m-%d}")
+
+        with runs.record(conn, "ingest", params={"since": since.isoformat()}) as rec:
+            ingest_stage.ingest(conn, rec, client=client, since=since)
+        click.echo(f"  live feeds: fetched {rec.items_fetched}, errors {rec.errors}")
+
+        with runs.record(conn, "backfill", params={"since": since.isoformat()}) as rec:
+            ingest_stage.backfill(conn, rec, client=client, since=since)
+        click.echo(f"  archives:   fetched {rec.items_fetched}, errors {rec.errors}")
+
+        if not do_extract:
+            click.echo("  extraction skipped (--no-extract)")
+            return
+
+        cfg = Config.load()
+        ledger = CostLedger(ceiling_usd=cfg.llm_cost_ceiling_usd_per_run)
+        extractor = Extractor(model=cfg.extraction_model, ledger=ledger)
+        with runs.record(conn, "extract", params={"limit": limit}) as rec:
+            try:
+                extract_stage.run(
+                    conn, rec, extractor=extractor, client=client, limit=limit
+                )
+            except CostCeilingExceeded as exc:
+                rec.fail("extract", str(exc))
+                raise click.ClickException(str(exc)) from exc
+        click.echo(
+            f"  extraction: {rec.moves_created} move(s), "
+            f"{rec.moves_queued_for_review} to review, ${rec.llm_cost_usd:.4f}"
         )
 
 

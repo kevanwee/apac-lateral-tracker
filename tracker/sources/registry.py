@@ -16,16 +16,45 @@ import yaml
 from tracker.net.client import PoliteClient
 from tracker.sources.base import SourceAdapter, SourceConfig
 from tracker.sources.feed import FeedAdapter
+from tracker.sources.imap_adapter import ImapAdapter
+from tracker.sources.paginated_feed import PaginatedFeedAdapter
+from tracker.sources.sitemap import SitemapAdapter
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "sources.yaml"
 
 AdapterFactory = Callable[[SourceConfig, PoliteClient], SourceAdapter]
 
-# An outlet gets a bespoke adapter only when the generic one genuinely cannot
-# read it. Three sources in, none of them do.
+def _imap(config: SourceConfig, _client: PoliteClient) -> SourceAdapter:
+    """IMAP takes credentials rather than the HTTP client."""
+    import os
+
+    username = os.environ.get("IMAP_USERNAME", "").strip()
+    password = os.environ.get("IMAP_PASSWORD", "").strip()
+    if not username or not password:
+        raise RegistryError(
+            f"{config.slug}: IMAP_USERNAME and IMAP_PASSWORD must be set. "
+            f"Use an app-specific password; see .env.example."
+        )
+    return ImapAdapter(config=config, username=username, password=password)
+
+
+# An outlet gets a bespoke adapter only when the generic one cannot read it.
+#   feed            a live RSS/Atom window — the daily path
+#   paginated_feed  the same feed walked back through its archive — backfill
+#   sitemap         URL-level enumeration of an archive, headline_only
+#   imap            newsletters delivered to a mailbox we control
 ADAPTERS: dict[str, AdapterFactory] = {
     "feed": lambda config, client: FeedAdapter(config=config, client=client),
+    "paginated_feed": lambda config, client: PaginatedFeedAdapter(
+        config=config, client=client
+    ),
+    "sitemap": lambda config, client: SitemapAdapter(config=config, client=client),
+    "imap": _imap,
 }
+
+# Adapters that read an archive rather than a live window. Only these are worth
+# running during a backfill; the rest just re-read the same recent items.
+BACKFILL_ADAPTERS = {"paginated_feed", "sitemap", "imap"}
 
 
 class RegistryError(ValueError):
@@ -72,8 +101,11 @@ def load(path: Path = CONFIG_PATH) -> list[RegisteredSource]:
             raise RegistryError(f"{slug}: tier 1 is reserved for a firm's own newsroom")
 
         access_type = entry.get("access_type", "feed")
-        if access_type == "feed" and not entry.get("feed_url"):
-            raise RegistryError(f"{slug}: a feed source needs a feed_url")
+        # Only the adapters that actually read a feed need a feed URL. A
+        # sitemap or mailbox source is still access_type feed — it reads what
+        # the outlet publishes for machines — but has no feed of its own.
+        if adapter in {"feed", "paginated_feed"} and not entry.get("feed_url"):
+            raise RegistryError(f"{slug}: the {adapter} adapter needs a feed_url")
         # Phase 0: HTML collection needs a dated terms review before it runs.
         if (
             access_type == "html"

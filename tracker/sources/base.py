@@ -30,6 +30,9 @@ class RawItem:
     published_at: datetime
     access_level: AccessLevel
     published_at_is_estimated: bool = False
+    # True when the headline was rebuilt from a URL slug rather than published
+    # by the outlet. Lossy: no punctuation, no capitalisation. See sitemap.py.
+    headline_is_derived: bool = False
     # Transient. Not persisted, not logged, discarded after extraction.
     body_text: str | None = field(default=None, repr=False)
 
@@ -59,6 +62,7 @@ class RawItem:
             published_at=self.published_at,
             access_level=self.access_level,
             published_at_is_estimated=self.published_at_is_estimated,
+            headline_is_derived=self.headline_is_derived,
             body_text=None,
         )
 

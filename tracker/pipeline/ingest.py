@@ -17,7 +17,7 @@ from tracker.net.client import PoliteClient, RobotsDisallowed
 from tracker.pipeline.runs import RunRecorder
 from tracker.sources import registry
 from tracker.sources.base import RawItem
-from tracker.sources.registry import RegisteredSource
+from tracker.sources.registry import BACKFILL_ADAPTERS, RegisteredSource
 
 log = logging.getLogger(__name__)
 
@@ -114,6 +114,67 @@ def due_sources(conn: psycopg.Connection, *, only: str | None = None) -> list[di
     ).fetchall()
 
 
+def backfill(
+    conn: psycopg.Connection,
+    recorder: RunRecorder,
+    *,
+    client: PoliteClient,
+    since: datetime,
+    only: str | None = None,
+) -> None:
+    """Walk archives back to `since`.
+
+    Only adapters that can actually read an archive take part — running a live
+    feed adapter here would just re-read the same recent window and report a
+    misleadingly small yield.
+
+    Resumable by construction: every item insert is a no-op on the url unique
+    constraint, so an interrupted backfill is continued by re-running the same
+    command. `sources.backfilled_to` records progress for reporting, not for
+    correctness.
+    """
+    by_slug = {s.config.slug: s for s in registry.load()}
+
+    rows = conn.execute(
+        """
+        SELECT id, slug, reliability_tier, default_access_level, backfilled_to
+        FROM sources
+        WHERE active AND (%s::text IS NULL OR slug = %s::text)
+        ORDER BY reliability_tier, slug
+        """,
+        (only, only),
+    ).fetchall()
+
+    for row in rows:
+        source = by_slug.get(row["slug"])
+        if source is None or not source.collectable:
+            continue
+        if source.config.adapter not in BACKFILL_ADAPTERS:
+            log.info(
+                "%s: %s adapter reads a live window only, skipping in backfill",
+                row["slug"], source.config.adapter,
+            )
+            continue
+
+        conn.execute(
+            "UPDATE sources SET backfill_started_at = coalesce(backfill_started_at, now()) "
+            "WHERE id = %s",
+            (row["id"],),
+        )
+        _ingest_one(conn, recorder, source, row, client=client, since=since)
+
+        oldest = conn.execute(
+            "SELECT min(published_at)::date AS d FROM raw_items WHERE source_id = %s",
+            (row["id"],),
+        ).fetchone()["d"]
+        conn.execute(
+            "UPDATE sources SET backfilled_to = %s, backfill_completed_at = now() "
+            "WHERE id = %s",
+            (oldest, row["id"]),
+        )
+        conn.commit()
+
+
 def ingest(
     conn: psycopg.Connection,
     recorder: RunRecorder,
@@ -201,9 +262,10 @@ def _insert_item(
         """
         INSERT INTO raw_items
             (source_id, url, headline, published_at, published_at_is_estimated,
-             content_hash, source_access, processing_state, reject_reason,
-             gate_version, gate_passed, gate_score, gate_matched_terms)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             headline_is_derived, content_hash, source_access, processing_state,
+             reject_reason, gate_version, gate_passed, gate_score,
+             gate_matched_terms)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (url) DO NOTHING
         RETURNING id
         """,
@@ -213,6 +275,7 @@ def _insert_item(
             item.headline,
             item.published_at,
             item.published_at_is_estimated,
+            item.headline_is_derived,
             item.content_hash,
             item.access_level,
             "new" if decision.passed else "rejected",
