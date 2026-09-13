@@ -22,6 +22,24 @@ class ConfigError(RuntimeError):
     """Raised when required configuration is missing or unusable."""
 
 
+def direct_url_from(pooled: str | None) -> str | None:
+    """Derive the direct connection URL from a pooled one.
+
+    Migrations need a direct connection, because pooled connections do not
+    reliably support session-level DDL. On Neon and Supabase the two URLs differ
+    only by a marker in the hostname, so deriving it saves the user pasting the
+    same secret twice and getting one of them subtly wrong.
+
+    Setting DATABASE_URL_DIRECT explicitly always wins over this.
+    """
+    if not pooled:
+        return None
+    for marker in ("-pooler.", ".pooler."):
+        if marker in pooled:
+            return pooled.replace(marker, ".", 1)
+    return pooled
+
+
 def _require(name: str) -> str:
     value = os.environ.get(name, "").strip()
     if not value:
@@ -70,7 +88,8 @@ class Config:
         return cls(
             database_url=database_url,
             database_url_direct=(
-                os.environ.get("DATABASE_URL_DIRECT") or database_url
+                os.environ.get("DATABASE_URL_DIRECT")
+                or direct_url_from(database_url)
             ),
             user_agent=user_agent,
             min_request_interval_seconds=interval,
