@@ -130,7 +130,14 @@ def clean_conn(migrated_db: str):
         c.execute(f"TRUNCATE {', '.join(DATA_TABLES)} RESTART IDENTITY CASCADE")
         c.commit()
         yield c
+        # Committed rows outlive a rollback. Leave the database as empty as
+        # it was found, or the next module's rollback-isolated tests inherit
+        # this one's data — a loaded taxonomy left here made every invariant
+        # test that inserts its own current version fail with a unique
+        # violation, depending on which test file happened to run first.
         c.rollback()
+        c.execute(f"TRUNCATE {', '.join(DATA_TABLES)} RESTART IDENTITY CASCADE")
+        c.commit()
 
 
 # ---------------------------------------------------------------------------
