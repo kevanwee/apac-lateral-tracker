@@ -617,6 +617,15 @@ def reextract_cmd(slug: str | None, do_apply: bool, reason: str) -> None:
             """,
             params,
         ).rowcount
+        # A person whose every move has just been discarded is personal data
+        # with no record behind it. Phase 0 section 4: nothing about a person
+        # is kept that a move does not need.
+        orphans = conn.execute(
+            """
+            DELETE FROM people p
+            WHERE NOT EXISTS (SELECT 1 FROM moves m WHERE m.person_id = p.id)
+            """
+        ).rowcount
         reset = conn.execute(
             f"""
             UPDATE raw_items ri SET processing_state = 'new', reject_reason = NULL,
@@ -632,7 +641,10 @@ def reextract_cmd(slug: str | None, do_apply: bool, reason: str) -> None:
         conn.commit()
 
     click.echo("")
-    click.echo(f"discarded {deleted} move(s); {reset} item(s) marked for extraction again")
+    click.echo(
+        f"discarded {deleted} move(s) and {orphans} person row(s) left without one; "
+        f"{reset} item(s) marked for extraction again"
+    )
     click.echo(f"reason: {reason}")
 
 
