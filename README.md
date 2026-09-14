@@ -77,13 +77,28 @@ tracker extract             # read gate-passed items; $0
 tracker status
 ```
 
-Tests need a throwaway Postgres: the suite drops the `public` schema, and
-`tests/conftest.py` refuses to run it against anything but a local host.
+Tests need a database they are allowed to destroy: the suite drops and
+recreates the `public` schema on every run. `tests/conftest.py` decides
+whether the one it has been handed qualifies, and refuses otherwise.
+
+A local Postgres is accepted whatever the database is called:
 
 ```bash
 docker run -d -e POSTGRES_PASSWORD=pg -p 5432:5432 postgres:16
 TRACKER_TEST_DATABASE_URL=postgresql://postgres:pg@localhost/postgres pytest -q
 ```
+
+A separate database on the same managed project also works, and runs at
+roughly local speed (540 tests in ~40 s). Create it once over the **direct**
+endpoint — a pooled one will not run `CREATE DATABASE`:
+
+```sql
+CREATE DATABASE tracker_test;
+```
+
+The guard then requires two things of a remote database: its name must end
+with `_test`, and it must not be the database `DATABASE_URL` points at. The
+live database therefore cannot be selected by any value of any variable.
 
 ## Operating model
 
