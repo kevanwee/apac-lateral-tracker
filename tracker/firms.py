@@ -29,10 +29,31 @@ _AND = re.compile(r"\s*(?:&|\+|\band\b)\s*")
 _PUNCT = re.compile(r"[^\w\s]")
 _WS = re.compile(r"\s+")
 
+# Shortest ampersand-closed surface worth indexing. See build().
+_MIN_TIGHT_SURFACE = 3
+
 
 def normalise(text: str) -> str:
     """Comparison form: lowercase, ampersands folded, punctuation dropped."""
     text = _AND.sub(" ", text.lower())
+    text = _PUNCT.sub(" ", text)
+    return _WS.sub(" ", text).strip()
+
+
+def normalise_tight(text: str) -> str:
+    """The same, but with the ampersand closed up instead of spaced out.
+
+    Outlets that slug a headline drop the ampersand without leaving a gap, so
+    "K&L Gates" arrives as "kl-gates" and "A&O Shearman" as "ao-shearman".
+    `normalise` turns the first into "k l gates" and the second into "a o
+    shearman", neither of which matches the slug form, so the firm went
+    unresolved -- and an unresolved destination firm makes the extractor
+    discard the item without reading the body at all.
+
+    Both forms are indexed rather than one being chosen, because both occur:
+    prose writes "K&L Gates", slugs write "kl gates".
+    """
+    text = _AND.sub("", text.lower())
     text = _PUNCT.sub(" ", text)
     return _WS.sub(" ", text).strip()
 
@@ -95,13 +116,28 @@ class FirmGazetteer:
         index: dict[str, str] = {}
         for entry in self.entries:
             for surface in (entry.canonical_name, *entry.aliases):
-                key = normalise(surface)
-                if not key:
-                    continue
-                # A longer canonical name wins a collision: "Rajah & Tann
-                # Singapore" should not be shadowed by "Rajah & Tann".
-                if key not in index or len(entry.canonical_name) > len(index[key]):
-                    index[key] = entry.canonical_name
+                # Both spellings of an ampersand: "k l gates" from prose and
+                # "kl gates" from a URL slug are the same firm.
+                #
+                # The tight form is skipped when it collapses to two letters.
+                # Closing up "A&O", "S&C", "A&G" and "R&T" produces `ao`, `sc`,
+                # `ag` and `rt`, which are the Order of Australia, Senior
+                # Counsel, the Attorney-General and "Rt Hon" -- all of which
+                # occur constantly in this corpus, and all of which would then
+                # resolve to a firm. Word-boundary checking does not help: they
+                # are standalone tokens, not substrings. The spaced forms
+                # ("a o", "s c") are unaffected and stay indexed.
+                keys = {normalise(surface)}
+                tight = normalise_tight(surface)
+                if len(tight) >= _MIN_TIGHT_SURFACE:
+                    keys.add(tight)
+                for key in keys:
+                    if not key:
+                        continue
+                    # A longer canonical name wins a collision: "Rajah & Tann
+                    # Singapore" should not be shadowed by "Rajah & Tann".
+                    if key not in index or len(entry.canonical_name) > len(index[key]):
+                        index[key] = entry.canonical_name
         self._index = index
 
         # Longest-first alternation, so "Rajah & Tann Singapore" is preferred
@@ -148,8 +184,15 @@ class FirmGazetteer:
         return out
 
     def resolve(self, text: str) -> str | None:
-        """Canonical name for an exact firm string, or None if unknown."""
-        return self._index.get(normalise(text))
+        """Canonical name for an exact firm string, or None if unknown.
+
+        Tries both ampersand spellings, so a slug-derived "kl gates" resolves
+        against an indexed "k l gates" and vice versa.
+        """
+        return (
+            self._index.get(normalise(text))
+            or self._index.get(normalise_tight(text))
+        )
 
     def __len__(self) -> int:
         return len(self.entries)
