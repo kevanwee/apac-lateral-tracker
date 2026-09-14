@@ -217,7 +217,7 @@ def backfill(
             "WHERE id = %s",
             (row["id"],),
         )
-        _ingest_one(conn, recorder, source, row, client=client, since=since)
+        conn = _ingest_one(conn, recorder, source, row, client=client, since=since)
 
         oldest = conn.execute(
             "SELECT min(published_at)::date AS d FROM raw_items WHERE source_id = %s",
@@ -252,7 +252,7 @@ def ingest(
                 skipped_reason="not collectable in the current register",
             )
             continue
-        _ingest_one(conn, recorder, source, row, client=client, since=since)
+        conn = _ingest_one(conn, recorder, source, row, client=client, since=since)
 
     conn.commit()
 
@@ -265,7 +265,13 @@ def _ingest_one(
     *,
     client: PoliteClient,
     since: datetime | None,
-) -> None:
+) -> psycopg.Connection:
+    """Fetch one source and write its items. Returns the live connection.
+
+    The connection is returned rather than mutated because a long fetch can
+    outlast it — see db.live — and the caller must not keep using the one it
+    passed in.
+    """
     adapter = registry.build_adapter(source, client)
     fetched = new = gate_passed = 0
 
@@ -285,7 +291,7 @@ def _ingest_one(
         recorder.source_yield(
             row["id"], fetched=0, new=0, gate_passed=0, skipped_reason=str(exc)[:200]
         )
-        return
+        return conn
     except Exception as exc:  # noqa: BLE001 - one bad source must not end the run
         conn = db.live(conn, direct=True)
         recorder.conn = conn
@@ -294,7 +300,7 @@ def _ingest_one(
         recorder.source_yield(
             row["id"], fetched=0, new=0, gate_passed=0, error=f"{type(exc).__name__}: {exc}"
         )
-        return
+        return conn
 
     # Some outlets slug entities rather than the headline, so the language
     # gate rejects every item. See gate.evaluate_entity_slug.
@@ -322,6 +328,7 @@ def _ingest_one(
         row["id"], fetched=fetched, new=new, gate_passed=gate_passed
     )
     conn.commit()
+    return conn
 
 
 def _insert_item(
