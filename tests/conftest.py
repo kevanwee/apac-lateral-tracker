@@ -36,15 +36,53 @@ TAXONOMY_VERSION = "0.0.1"
 # in explicitly, because the session fixture below drops the schema.
 _LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "postgres", "db")
 
+# A database on a remote host may only be wiped if its name says so. The live
+# database is `neondb`; nothing that ends in this suffix is it.
+_DISPOSABLE_SUFFIX = "_test"
+
 
 class DestructiveTestGuard(Exception):
     """Raised rather than dropping a schema that might not be disposable."""
 
 
-def _is_disposable(dsn: str) -> bool:
-    """Only local hosts are assumed safe to wipe."""
+def _database_of(dsn: str) -> str:
+    return (urlparse(dsn).path or "").lstrip("/")
+
+
+def _is_disposable(dsn: str, live_dsn: str | None = None) -> bool:
+    """Whether this suite may drop the schema of `dsn`.
+
+    The test asks about the **database**, not only the host. Host alone was
+    enough while every test database was local, but a managed Postgres serves
+    the disposable database and the live one from the same hostname, so a
+    host allowlist there would authorise both.
+
+    Two rules, and a remote database has to satisfy the second:
+
+    1. Never the database the pipeline writes to. Compared by name and host
+       against `live_dsn`, so pasting the live DSN into
+       TRACKER_TEST_DATABASE_URL is refused rather than obeyed.
+    2. A local host is disposable by name. A remote one is disposable only if
+       its database name ends with `_test`, which the live database's does
+       not and cannot acquire by accident.
+    """
     host = (urlparse(dsn).hostname or "").lower()
-    return host in _LOCAL_HOSTS
+    name = _database_of(dsn)
+    if not name:
+        return False
+
+    if live_dsn:
+        live_host = (urlparse(live_dsn).hostname or "").lower()
+        # Neon serves the pooled and direct endpoints under hostnames that
+        # differ only by "-pooler"; same cluster, same data.
+        if name == _database_of(live_dsn) and host.replace("-pooler", "") == (
+            live_host.replace("-pooler", "")
+        ):
+            return False
+
+    if host in _LOCAL_HOSTS:
+        return True
+    return name.endswith(_DISPOSABLE_SUFFIX)
 
 
 def _dsn() -> str:
@@ -57,27 +95,43 @@ def _dsn() -> str:
     DATABASE_URL in .env, running pytest dropped the live schema. The suite
     needs a disposable database, so it now refuses to guess which one that is.
     """
+    live_dsn = os.environ.get("DATABASE_URL")
+
+    # Checked, not trusted. This variable used to be returned unvalidated, so
+    # the guard covered only the DATABASE_URL fallback and pasting the live
+    # DSN here would have dropped the live schema with nothing in the way.
+    # It is the variable most likely to hold a remote DSN, so it is the one
+    # that most needs checking.
     test_dsn = os.environ.get("TRACKER_TEST_DATABASE_URL")
     if test_dsn:
-        return test_dsn
+        if _is_disposable(test_dsn, live_dsn):
+            return test_dsn
+        raise DestructiveTestGuard(_refusal(test_dsn, "TRACKER_TEST_DATABASE_URL"))
 
-    dsn = os.environ.get("DATABASE_URL")
-    if not dsn:
+    if not live_dsn:
         pytest.skip(
             "No test database. Set TRACKER_TEST_DATABASE_URL, or run a local "
             "Postgres and point DATABASE_URL at it."
         )
 
-    if _is_disposable(dsn) or os.environ.get("TRACKER_ALLOW_DESTRUCTIVE_TESTS") == "1":
-        return dsn
+    if (
+        _is_disposable(live_dsn)
+        or os.environ.get("TRACKER_ALLOW_DESTRUCTIVE_TESTS") == "1"
+    ):
+        return live_dsn
 
-    host = urlparse(dsn).hostname
-    raise DestructiveTestGuard(
-        f"Refusing to run destructive tests against {host!r}. "
-        f"This suite drops and recreates the `public` schema, which would "
-        f"erase everything in that database. "
-        f"Set TRACKER_TEST_DATABASE_URL to a throwaway database, or "
-        f"TRACKER_ALLOW_DESTRUCTIVE_TESTS=1 if you are certain."
+    raise DestructiveTestGuard(_refusal(live_dsn, "DATABASE_URL"))
+
+
+def _refusal(dsn: str, variable: str) -> str:
+    """Say which database was refused, and never echo the credentials."""
+    return (
+        f"Refusing to run destructive tests against database "
+        f"{_database_of(dsn)!r} on {urlparse(dsn).hostname!r}, named by "
+        f"{variable}. This suite drops and recreates the `public` schema, "
+        f"which would erase everything in that database. A remote database "
+        f"is only accepted when its name ends with {_DISPOSABLE_SUFFIX!r} and "
+        f"it is not the database DATABASE_URL points at."
     )
 
 
