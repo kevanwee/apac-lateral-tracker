@@ -516,6 +516,45 @@ firms:
     type: boutique
     aliases: []
 
+  # --- Added from live Asia Business Law Journal coverage ---------------
+  - name: Greenberg Traurig
+    type: global
+    aliases: [GT Law]
+  - name: RPC
+    type: global
+    aliases: [Reynolds Porter Chamberlain]
+  - name: Hiways Law Firm
+    type: regional
+    hq: CN
+    aliases: [Hiways]
+  - name: Sunwell Law Firm
+    type: regional
+    hq: CN
+    aliases: [Sunwell]
+  - name: Dentons HPRP
+    type: local
+    hq: ID
+    aliases: [HPRP, Hanafiah Ponggawa & Partners]
+  - name: TMI Associates
+    type: regional
+    hq: JP
+    aliases: [TMI]
+  - name: Peter & Kim
+    type: boutique
+    aliases: [Peter and Kim]
+  - name: Blackstone & Gold
+    type: boutique
+    hq: SG
+    aliases: [Blackstone Gold]
+  - name: ACCRALAW
+    type: regional
+    hq: PH
+    aliases: [Angara Abello Concepcion Regala & Cruz]
+  - name: Lee & Ko Korea
+    type: regional
+    hq: KR
+    aliases: []
+
   # --- Korea / Japan / India -------------------------------------------
   - name: Kim & Chang
     type: regional

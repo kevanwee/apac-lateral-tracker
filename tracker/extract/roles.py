@@ -102,7 +102,11 @@ _AND_ARTICLE = re.compile(r"\s+and\s+(?:a|an|the|its)\s+.*$", re.IGNORECASE)
 
 def clean_practice(raw: str) -> str | None:
     text = _AND_ARTICLE.sub("", raw).strip(" ,;-–—").strip()
-    text = re.sub(r"^(?:the|its|a|an|their|new|newest)\s+", "", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"^(?:of|in|on|for|to|at|the|its|a|an|their|new|newest)\s+",
+        "", text, flags=re.IGNORECASE,
+    )
+    text = re.sub(r"^(?:the|its|a|an)\s+", "", text, flags=re.IGNORECASE)
     if not text or len(text) < 3:
         return None
     words = [w for w in re.split(r"[\s,]+", text.lower()) if w]

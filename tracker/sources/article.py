@@ -93,6 +93,15 @@ def body_of(html_source: str) -> str | None:
     if not text:
         return None
 
+    # Site chrome sits above the article and repeats the headline, so cutting
+    # at the *last* occurrence of the headline drops the navigation without
+    # needing a per-site selector.
+    headline = title_of(html_source)
+    if headline:
+        at = text.rfind(headline)
+        if at > 0:
+            text = text[at + len(headline):]
+
     match = _BYLINE.search(text)
     body = text[match.end():] if match else text
 
@@ -108,3 +117,50 @@ def body_of(html_source: str) -> str | None:
     if len(body) < MIN_USEFUL_LENGTH:
         return None
     return body[:BODY_CHAR_LIMIT]
+
+
+# ---------------------------------------------------------------------------
+# The real headline
+# ---------------------------------------------------------------------------
+# A slug-derived headline is a reconstruction, and for some outlets a poor one.
+# Asia Business Law Journal slugs entities rather than the headline, so
+#
+#     law.asia/kennedys-hong-kong-andrew-carpenter/
+#
+# rebuilds as "Kennedys hong kong andrew carpenter" — no verb, nothing a
+# template can match. The page itself carries what the outlet actually
+# published:
+#
+#     "Kennedys lands corporate partner from RPC in Hong Kong"
+#
+# which names the verb, both firms and the market. Once the article has been
+# fetched, that is strictly better evidence than the slug, and the headline is
+# something `raw_items` stores anyway.
+
+_H1 = re.compile(r"<h1\b[^>]*>(?P<text>.*?)</h1>", re.IGNORECASE | re.DOTALL)
+_TITLE_TAG = re.compile(r"<title\b[^>]*>(?P<text>.*?)</title>", re.IGNORECASE | re.DOTALL)
+# Outlets append their own name: "Headline | Law.asia", "Headline - The Lawyer".
+_SITE_SUFFIX = re.compile(r"\s*[|\u2013\u2014-]\s*[^|\u2013\u2014-]{1,40}$")
+
+MAX_HEADLINE_WORDS = 30
+
+
+def title_of(html_source: str) -> str | None:
+    """The headline the outlet actually published, or None.
+
+    Prefers <h1> over <title>: <title> carries the site name and sometimes a
+    section, while <h1> is usually the headline alone.
+    """
+    for pattern, strip_suffix in ((_H1, False), (_TITLE_TAG, True)):
+        match = pattern.search(html_source)
+        if not match:
+            continue
+        text = _WS.sub(" ", _unescape(_TAGS.sub(" ", match.group("text")))).strip()
+        text = text.lstrip("\ufeff").strip()
+        if strip_suffix:
+            text = _SITE_SUFFIX.sub("", text).strip()
+        # A nav-only <h1> or an empty title is worse than the slug we have.
+        words = text.split()
+        if 3 <= len(words) <= MAX_HEADLINE_WORDS:
+            return text
+    return None

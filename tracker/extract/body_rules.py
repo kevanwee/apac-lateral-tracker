@@ -31,9 +31,22 @@ _TITLE = r"[\w\s'’-]{3,60}"
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 
+# How far from a person's own mention a loose "from <Firm>" may sit and still
+# be read as that person's origin, in characters.
+_ORIGIN_PROXIMITY = 120
+
 # One person plus an origin firm. These give the richest record, so they run
 # first and win.
 WITH_ORIGIN = [
+    (
+        # "adds former Dechert's partner Stephen Chan" — the origin leads, as a
+        # possessive, and the person follows. Runs first because it is the most
+        # specific shape and names both ends unambiguously.
+        "ex_firm_partner",
+        rf"(?:former|ex[- ]|previously\s+(?:of|at))\s*(?P<firm_b>{_FIRM}?)"
+        rf"(?:['’]s)?\s+(?:partner|counsel|principal|lawyer)\s+"
+        rf"(?P<person>{_PERSON})",
+    ),
     (
         "lateral_hire_from",
         rf"(?P<person>{_PERSON})\s+is\s+a\s+lateral\s+hire"
@@ -77,6 +90,19 @@ WITHOUT_ORIGIN = [
         "will_join",
         rf"(?P<person>{_PERSON})\s+(?:will\s+|has\s+|is\s+(?:set\s+)?to\s+)?"
         rf"(?:re)?joins?(?:ed)?\s+(?:the\s+firm|{_FIRM})",
+    ),
+    (
+        # "with the addition of Andrew Carpenter as a partner in Hong Kong"
+        "addition_of",
+        rf"(?:addition|arrival|appointment|hiring|recruitment)\s+of"
+        rf"\s+(?P<person>{_PERSON})",
+    ),
+    (
+        # "adds former Dechert's partner Stephen Chan to its corporate practice"
+        "adds_named_role",
+        rf"(?:adds|appoints|hires|recruits|welcomes|lands|onboards)\s+"
+        rf"(?:former\s+|ex-)?[\w'’\- ]{{0,40}}?"
+        rf"(?:partner|counsel|principal|head)\s+(?P<person>{_PERSON})\b",
     ),
     (
         "led_by",
@@ -147,9 +173,18 @@ def resolve_leading_firm(candidate: str, gazetteer: FirmGazetteer) -> str | None
     """
     words = candidate.split()
     for end in range(len(words), 0, -1):
-        resolved = gazetteer.resolve(" ".join(words[:end]))
+        prefix = " ".join(words[:end])
+        resolved = gazetteer.resolve(prefix)
         if resolved:
             return resolved
+        # Possessives are how a body names an origin: "former Dechert's
+        # partner". Without this the correct pattern fails and a weaker one
+        # wins with the wrong firm.
+        stripped = re.sub(r"['’]s$", "", prefix)
+        if stripped != prefix:
+            resolved = gazetteer.resolve(stripped)
+            if resolved:
+                return resolved
     return None
 
 

@@ -103,15 +103,23 @@ def save_article_cache(cache: dict[str, str], path: pathlib.Path = ARTICLE_CACHE
         log.warning("could not write the article cache: %s", exc)
 
 
-def _article_body(client: PoliteClient, url: str) -> str | None:
-    """Fetch and reduce one article. Never raises; a miss is just less evidence."""
+def _article(client: PoliteClient, url: str) -> tuple[str | None, str | None]:
+    """Fetch one article and return (real headline, body).
+
+    The headline matters as much as the body for an outlet that slugs entities
+    rather than the headline: law.asia/kennedys-hong-kong-andrew-carpenter
+    rebuilds as "Kennedys hong kong andrew carpenter", while the page says
+    "Kennedys lands corporate partner from RPC in Hong Kong" — verb, both firms
+    and the market. Never raises; a miss is just less evidence.
+    """
     try:
-        return article.body_of(client.fetch(url).text)
+        html = client.fetch(url).text
     except RobotsDisallowed:
-        return None  # robots said no, which is a valid answer
+        return None, None  # robots said no, which is a valid answer
     except Exception as exc:  # noqa: BLE001
         log.info("could not read %s: %s", url, exc)
-        return None
+        return None, None
+    return article.title_of(html), article.body_of(html)
 
 
 def fingerprint(raw_item_id, person_name: str, slot: int) -> str:
@@ -152,12 +160,18 @@ def run(
         # No body from the feed, but this source's terms have been reviewed:
         # read the article. Most headlines name nobody, so without this the
         # database path yields far less than `tracker collect` does.
+        headline = row["headline"]
         if body is None and row["html_access_reviewed_at"]:
-            if row["url"] in cache:
-                body = cache[row["url"]] or None
+            cached = cache.get(row["url"])
+            if cached is not None:
+                body = (cached.get("body") if isinstance(cached, dict) else cached) or None
+                if isinstance(cached, dict) and cached.get("title"):
+                    headline = cached["title"]
             elif client is not None:
-                body = _article_body(client, row["url"])
-                cache[row["url"]] = body or ""
+                real_title, body = _article(client, row["url"])
+                if real_title:
+                    headline = real_title
+                cache[row["url"]] = {"title": real_title or "", "body": body or ""}
                 fetched += 1
                 if fetched % 10 == 0:
                     save_article_cache(cache)
@@ -175,10 +189,19 @@ def run(
                 (row["id"],),
             )
 
+        # The page headline beats a reconstruction, and raw_items stores a
+        # headline anyway — so keep the better one.
+        if headline != row["headline"]:
+            conn.execute(
+                "UPDATE raw_items SET headline = %s, headline_is_derived = false "
+                "WHERE id = %s",
+                (headline, row["id"]),
+            )
+
         item = RawItem(
             source_slug=row["source_slug"],
             url=row["url"],
-            headline=row["headline"],
+            headline=headline,
             published_at=row["published_at"],
             access_level=access,
             body_text=body,
