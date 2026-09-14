@@ -560,6 +560,38 @@ def extract_cmd(limit: int | None, extractor: str) -> None:
         )
 
 
+@cli.command("dedupe")
+@click.option("--apply", "do_apply", is_flag=True,
+              help="Actually merge. Without this, only report what would happen.")
+def dedupe_cmd(do_apply: bool) -> None:
+    """Collapse reports of one move into one event (Phase 4).
+
+    Reports before it writes, like `reextract`, because a merge replaces
+    human-visible rows. Until this has run, a move three outlets covered is
+    three rows and no cross-source trend is reportable -- see
+    docs/methodology.md section 1.
+    """
+    from tracker.pipeline import dedupe as dedupe_stage
+    from tracker.pipeline import runs
+
+    with db.connect(direct=True) as conn, runs.record(
+        conn, "dedupe", params={"apply": do_apply}
+    ) as recorder:
+        stats = dedupe_stage.run(conn, recorder, apply=do_apply)
+
+    click.echo(f"  {stats['candidates']:6} canonical moves considered")
+    click.echo(f"  {stats['blocks']:6} blocks with more than one move")
+    click.echo(f"  {stats['pairs_compared']:6} pairs compared")
+    click.echo(f"  {stats['merged']:6} merge(s) covering "
+               f"{stats['moves_superseded']} move(s)")
+    click.echo(f"  {stats['queued']:6} sent to the review queue")
+    click.echo(f"  {stats['teams']:6} team move(s) detected")
+
+    if not do_apply:
+        click.echo("")
+        click.echo("dry run. Re-run with --apply to write these merges.")
+
+
 @cli.command("reextract")
 @click.option("--source", "slug", default=None,
               help="Limit to one source slug. Omit to cover every source.")

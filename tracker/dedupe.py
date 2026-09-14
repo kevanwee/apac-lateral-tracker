@@ -97,6 +97,8 @@ def _initial_compatible(one: list[str], other: list[str]) -> bool:
 class GivenMatch:
     score: float
     label: str
+    # "agree" and "partial" are scored; "disagree" and "unknown" are gates.
+    kind: str = "agree"
 
 
 def compare_given(
@@ -118,24 +120,24 @@ def compare_given(
     # 'Kevin Tan', whose bracketed alias is already in people.name_variants.
     shared = {k for k in keys_a & keys_b if k[1]}
     if shared:
-        return GivenMatch(1.0, "a spelling in common")
+        return GivenMatch(1.0, "a spelling in common", "agree")
 
     given_a, given_b = names.given_tokens(name_a), names.given_tokens(name_b)
     if not given_a or not given_b:
-        return GivenMatch(0.5, "one side states no given name")
+        return GivenMatch(0.5, "one side states no given name", "unknown")
 
     if _compact(" ".join(given_a)) == _compact(" ".join(given_b)):
-        return GivenMatch(1.0, "given names match")
+        return GivenMatch(1.0, "given names match", "agree")
 
     if given_a[0] == given_b[0]:
         # "Sarah Jane Chen" against "Sarah Chen": a middle name appears in one
         # report and not the other. Very common, and not a disagreement.
-        return GivenMatch(0.9, "first given name matches, middle differs")
+        return GivenMatch(0.9, "first given name matches, middle differs", "agree")
 
     if _initial_compatible(given_a, given_b):
-        return GivenMatch(0.75, "one given name is an initial of the other")
+        return GivenMatch(0.75, "one given name is an initial of the other", "partial")
 
-    return GivenMatch(0.0, "given names disagree")
+    return GivenMatch(0.0, "given names disagree", "disagree")
 
 
 def _agreement(a, b, *, agree: float, conflict: float) -> tuple[float, str | None]:
@@ -196,9 +198,21 @@ def score_pair(a: dict, b: dict) -> PairScore:
 
     components: dict = {"given": given.label, "given_score": given.score}
 
-    # The gate. Nothing below can rescue a pair whose given names disagree.
-    if given.score == 0.0:
+    # Two gates, before any arithmetic.
+    #
+    # A disagreement ends the pair: nothing below can rescue it.
+    if given.kind == "disagree":
         return PairScore(0.0, "distinct", given, components)
+
+    # Silence is not evidence either way, and it is not something a weighted
+    # sum should be allowed to out-vote. "Chen joins Allen & Gledhill" against
+    # "Sarah Chen joins Allen & Gledhill" is exactly the question the review
+    # queue exists for: probably one move, not provably one. Scored, it landed
+    # at 0.52 -- below the review band, so the pair would have been silently
+    # left alone; and a few agreeing fields could have pushed it over the merge
+    # line instead. Neither outcome should be reachable from a bare surname.
+    if given.kind == "unknown":
+        return PairScore(round(BASE * given.score, 4), "ambiguous", given, components)
 
     total = BASE * given.score
 

@@ -162,6 +162,60 @@ def score(
     )
 
 
+def recompute_with_corroboration(
+    stored: dict, corroboration_count: int
+) -> ConfidenceComponents:
+    """Re-score a stored row now that more sources report the same move.
+
+    Phase 4 merges are the only place corroboration is ever above 1: at extract
+    time one item is one source by construction. The components are stored on
+    the row for exactly this reason, so a merge does not have to re-derive the
+    evidence — only to say how many independent outlets carried it.
+
+    The formula lives in `score` and is reproduced here from the stored
+    components rather than from the raw inputs, which a merged row no longer
+    has. Keeping both in this file is what stops them drifting apart.
+    """
+    tier_base = float(stored.get("tier_base") or 0.0)
+    access = float(stored.get("access_factor") or 0.0)
+    comp = float(stored.get("completeness") or 0.0)
+    spans = float(stored.get("span_quality") or 0.0)
+    self_reported = float(stored.get("self_reported") or 0.0)
+    dropped = int(stored.get("dropped_fields") or 0)
+
+    span_factor = SPAN_FLOOR + (1.0 - SPAN_FLOOR) * spans
+    dropped_penalty = DROPPED_FIELD_PENALTY * max(0, dropped)
+    bonus = min(CORROBORATION_CAP, CORROBORATION_STEP * max(0, corroboration_count - 1))
+
+    total = (
+        tier_base * access * span_factor
+        + COMPLETENESS_BONUS * comp
+        + bonus
+        - dropped_penalty
+    )
+    total = max(0.0, min(1.0, total))
+
+    forced: str | None = None
+    if dropped >= DROPPED_FIELDS_FORCING_REVIEW:
+        forced = f"{dropped} fields asserted without support in the text"
+    elif 0.0 < self_reported < SELF_REPORTED_REVIEW_FLOOR:
+        forced = f"model reported low confidence in its own reading ({self_reported:.2f})"
+
+    return ConfidenceComponents(
+        tier_base=round(tier_base, 3),
+        access_factor=access,
+        completeness=round(comp, 3),
+        span_quality=round(spans, 3),
+        self_reported=round(self_reported, 3),
+        dropped_fields=dropped,
+        dropped_penalty=round(dropped_penalty, 3),
+        corroboration_count=corroboration_count,
+        corroboration_bonus=round(bonus, 3),
+        total=round(total, 3),
+        forced_review_reason=forced,
+    )
+
+
 def needs_review(components: ConfidenceComponents | float) -> bool:
     """Accepts either the components or a bare total, for callers that only have one."""
     if isinstance(components, ConfidenceComponents):
