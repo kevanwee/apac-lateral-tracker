@@ -29,9 +29,15 @@ BODY = (
 
 @pytest.fixture
 def synced(clean_conn: psycopg.Connection):
-    """The register, loaded into an empty database."""
+    """The register and the taxonomy, loaded into an empty database.
+
+    Extraction classifies every move it persists, and refuses to run against
+    a database whose taxonomy has not been loaded — the same refusal an
+    operator gets. So the fixture loads it, as `tracker taxonomy --load` does.
+    """
     upserted, _ = ingest_stage.sync_sources(clean_conn)
     assert upserted >= 3
+    ingest_stage.sync_taxonomy(clean_conn)
     return clean_conn
 
 
