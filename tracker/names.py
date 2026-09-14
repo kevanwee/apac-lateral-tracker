@@ -129,8 +129,8 @@ def tokens(raw: str) -> list[str]:
 
     Affixes are stripped from the end they actually occur at, and only while a
     first and last name would survive. Several post-nominals are also surnames
-    in these markets — `Ma` is the one that bit: stripping it positionally
-    turned "Jessica Ma" into a person whose surname key was `jessica`.
+    in these markets — `Ma` is the one that bit: stripping it positionally left
+    the surname key holding the given name instead.
     """
     without_brackets = _BRACKETED.sub(" ", raw or "")
     without_apostrophes = _APOSTROPHE.sub("", strip_accents(without_brackets))

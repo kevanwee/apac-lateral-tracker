@@ -166,8 +166,12 @@ FROM_BODY = [
         "Roger Habib. The firm further strengthened its leadership with Alison Cui, "
         "Kate Ralph, Raffael Maestri and Mario Rashid-Ring becoming the firm's "
         "newest partners.",
-        ["Roger Habib", "Alison Cui", "Kate Ralph", "Raffael Maestri",
-         "Mario Rashid-Ring"],
+        # The chief transformation officer in the first sentence is no longer
+        # recovered, and should not be: this project tracks partner-level
+        # movement, and a C-suite hire is not one. The four partners in the
+        # second sentence still are, which is the distinction that matters --
+        # both roles are announced in the same article.
+        ["Alison Cui", "Kate Ralph", "Raffael Maestri", "Mario Rashid-Ring"],
         "Bartier Perry", None,
     ),
 ]

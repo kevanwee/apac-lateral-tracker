@@ -60,7 +60,7 @@ log = logging.getLogger(__name__)
 #   2.1.1  a firm followed by a loss cue ("Blow for X as partners exit") is
 #          the origin, never the destination; classification reads the page
 #          headline rather than the ingested slug
-RULES_VERSION = "rules/2.2.1"
+RULES_VERSION = "rules/2.3.0"
 
 # Loaded once: the place gazetteer is read-only and shared.
 PLACES = PlaceGazetteer.load()
@@ -209,6 +209,12 @@ ORGANISATION_WORDS = {
     "legal", "offices", "journal", "business", "founder", "chambers",
     "solicitors", "attorneys", "advocates", "consultancy", "consulting",
     "corporation", "incorporated", "partnership", "practice", "bureau",
+    # Company suffixes. An article names its subject's clients, and two of
+    # them reached the person slot from one sentence listing construction
+    # companies. `construction` is already a practice word; the plural is not.
+    "constructions", "builders", "holdings", "group", "industries",
+    "technologies", "systems", "solutions", "ventures", "partners",
+    "ltd", "limited", "pty", "inc", "corp", "plc",
 }
 
 NOT_A_PERSON = (
@@ -261,8 +267,36 @@ NON_PARTNER_TITLE = re.compile(
     re.IGNORECASE,
 )
 
-# The words that override the exclusion above when both appear.
-_PARTNER_WORD = re.compile(r"\b(?:partner|principal)\b", re.IGNORECASE)
+# The words that override the exclusion above when both appear. `partnership`
+# counts: "adds a special counsel to its partnership" is an elevation to
+# partner, and reading only `partner` would reject it.
+_PARTNER_WORD = re.compile(r"\b(?:partners?(?:hip)?|principal)\b", re.IGNORECASE)
+
+
+def sentence_states_non_partner_role(body: str, person_start: int) -> str | None:
+    """The non-partner role this person's own sentence gives them, if any.
+
+    `is_partner_level` only runs when a template captured a title. Ten records
+    captured none, so nothing checked them, and appointments the article calls
+    a special counsel or a senior associate were stored as partner moves.
+
+    The test is the person's own sentence rather than the headline, and that
+    distinction is the whole point. "Hicksons promotes three to senior
+    associate" reads like a clean rejection, but one of the people named
+    further down was separately appointed a partner -- the body says so -- and
+    a headline rule would have deleted a true record. A sentence naming any
+    partner-level word is left alone for the same reason: one sentence often
+    announces a partner and a senior associate together.
+    """
+    if not body or person_start < 0:
+        return None
+    start = body.rfind(".", 0, person_start) + 1
+    end = body.find(".", person_start)
+    sentence = body[start: end if end > 0 else len(body)]
+    if _PARTNER_WORD.search(sentence):
+        return None
+    found = NON_PARTNER_TITLE.search(sentence)
+    return found.group(0) if found else None
 
 
 # Verbs and counting words that appear in a slug without naming anybody.
@@ -669,6 +703,17 @@ class RuleExtractor:
                     person, backward,
                 )
                 continue
+
+            # No template captured a title, so is_partner_level never ran.
+            # The sentence itself may still say what the appointment was.
+            if not hit.title:
+                role = sentence_states_non_partner_role(body, hit.person_start)
+                if role:
+                    log.debug(
+                        "body hit %r abstained: its sentence calls the role %r",
+                        person, role,
+                    )
+                    continue
 
             # Origin, best evidence first: this person's own sentence, then
             # the firm pair the headline set up.
