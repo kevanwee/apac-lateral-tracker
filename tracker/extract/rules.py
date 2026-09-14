@@ -60,7 +60,7 @@ log = logging.getLogger(__name__)
 #   2.1.1  a firm followed by a loss cue ("Blow for X as partners exit") is
 #          the origin, never the destination; classification reads the page
 #          headline rather than the ingested slug
-RULES_VERSION = "rules/2.3.0"
+RULES_VERSION = "rules/2.4.0"
 
 # Loaded once: the place gazetteer is read-only and shared.
 PLACES = PlaceGazetteer.load()
@@ -345,6 +345,55 @@ _BACKWARD_CUE = re.compile(
 # How close the cue has to sit to the name to be said to govern it. Beyond
 # this the two are unrelated halves of a long sentence.
 _CUE_REACH = 60
+
+
+# An internal elevation. The phrasing has to name both the act and the grade:
+# "promotions round" on its own is common in articles about lateral hires at
+# firms that happen to have just run one.
+_PROMOTION_CUE = re.compile(
+    r"\b(?:"
+    r"promot(?:es?|ed|ing|ion)\s+(?:of\s+)?(?:[\w&'’-]+\s+){0,8}?to\s+"
+    r"(?:the\s+|its\s+|our\s+)?(?:national\s+|global\s+)?partner"
+    r"|elevat(?:es?|ed|ing)\s+(?:[\w&'’-]+\s+){0,8}?to\s+"
+    r"(?:the\s+|its\s+)?(?:national\s+|global\s+)?partner"
+    r"|been\s+promoted\s+to\s+(?:the\s+)?partner"
+    r"|promotions?\s+round"
+    r"|rounds?\s+of\s+promotions?"
+    r"|partnership\s+promotions?"
+    r")",
+    re.IGNORECASE,
+)
+
+# Arrived because two firms combined, not because one person moved. A distinct
+# market signal: nobody chose anything.
+_MERGER_CUE = re.compile(
+    r"\b(?:absorb(?:s|ed|ing)?|merger\s+with|merges?\s+with|merging\s+with"
+    r"|combination\s+with|combines?\s+with|tie-?up\s+with)\b",
+    re.IGNORECASE,
+)
+
+
+def classify_move_type(text: str, *, origin_is_known: bool) -> str | None:
+    """`promotion`, `merger_absorbed`, or None to leave the caller's default.
+
+    A stated origin firm always wins. It is direct evidence that the person
+    came from somewhere else, and it outranks any amount of promotion
+    vocabulary: "Dentons adds Holding Redlich special counsel to partnership"
+    names the firm he left, so it is a lateral however much it reads like an
+    elevation.
+
+    Without an origin, the language decides, and only unambiguous language.
+    "Welcomes four to partnership" is left alone, because a firm welcomes
+    people to its partnership whether it promoted them or hired them, and
+    guessing either way invents a fact the article withheld.
+    """
+    if origin_is_known or not text:
+        return None
+    if _MERGER_CUE.search(text):
+        return "merger_absorbed"
+    if _PROMOTION_CUE.search(text):
+        return "promotion"
+    return None
 
 
 def mention_is_backward_looking(body: str, person_start: int) -> str | None:
@@ -720,7 +769,23 @@ class RuleExtractor:
             from_firm = hit.from_firm or body_rules.origin_for(
                 person, body, self.gazetteer
             ) or headline_origin
+
+            # Without this, every internal elevation was recorded as a lateral,
+            # because the only thing that made a promotion was the origin firm
+            # happening to equal the destination -- and a promotion article
+            # states no origin at all. Eleven stored records were affected,
+            # against eleven promotions in the whole corpus.
             move_type = "promotion" if from_firm == to_firm else "lateral"
+            stated = classify_move_type(
+                f"{headline}\n{body}",
+                origin_is_known=from_firm is not None and from_firm != to_firm,
+            )
+            if stated:
+                move_type = stated
+                if stated == "promotion":
+                    # The schema requires both ends of a promotion to be the
+                    # same firm, and a promotion article names one firm.
+                    from_firm = to_firm
 
             fields: dict[str, VerifiedField] = {
                 "person_name": VerifiedField(
