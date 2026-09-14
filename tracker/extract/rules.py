@@ -195,6 +195,22 @@ PRACTICE_WORDS = {
     "sciences", "pharma", "mining", "resources", "wellbeing", "esports",
 }
 
+# Words that name an organisation and never appear inside a person's name.
+# The person slot is filled from a sentence, and a sentence contains outlets
+# and firms as well as people: three records survived every other guard with
+# an outlet's masthead, a firm's suffix and a role phrase in the person slot.
+#
+# `law` is deliberately absent. It is the obvious organisation word and it is
+# also a common Hong Kong surname, so excluding it would reject real partners
+# in one of the depth markets. Each of the three records is caught by a less
+# ambiguous word in the same string, so the ambiguous one is not needed.
+# The same reasoning keeps out `young`, `king`, `long` and `white`.
+ORGANISATION_WORDS = {
+    "legal", "offices", "journal", "business", "founder", "chambers",
+    "solicitors", "attorneys", "advocates", "consultancy", "consulting",
+    "corporation", "incorporated", "partnership", "practice", "bureau",
+}
+
 NOT_A_PERSON = (
     FUNCTION_WORDS
     | ROLE_WORDS
@@ -203,6 +219,7 @@ NOT_A_PERSON = (
     | PRACTICE_WORDS
     | PUBLIC_BODY_WORDS
     | NAVIGATION_WORDS
+    | ORGANISATION_WORDS
 )
 
 # A captured title must be partner-level or this is not a movement we track.
