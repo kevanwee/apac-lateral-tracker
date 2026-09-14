@@ -30,5 +30,17 @@ def connect(*, direct: bool = False, autocommit: bool = False) -> Iterator[psyco
             "DATABASE_URL is not set. Copy .env.example to .env and fill it in, "
             "or set it in the deployment environment."
         )
-    with psycopg.connect(dsn, row_factory=dict_row, autocommit=autocommit) as conn:
+    # A long stage holds this connection open across minutes of HTTP fetching
+    # at the 10s politeness floor — the archive walk is 33 requests before it
+    # touches the database again. Pooled Postgres closes an idle connection
+    # well inside that, so TCP keepalives are not optional here.
+    with psycopg.connect(
+        dsn,
+        row_factory=dict_row,
+        autocommit=autocommit,
+        keepalives=1,
+        keepalives_idle=30,
+        keepalives_interval=10,
+        keepalives_count=5,
+    ) as conn:
         yield conn
