@@ -54,11 +54,20 @@ def pending_items(conn: psycopg.Connection, *, limit: int | None = None) -> list
     ).fetchall()
 
 
+# Adapters that actually carry body text. A sitemap yields URLs and dates and
+# nothing else, so running one here re-fetches every child sitemap to return
+# an empty map — 33 requests and five minutes of the 10s floor, before
+# extraction has looked at a single item.
+_TEXT_BEARING_ADAPTERS = {"feed", "paginated_feed", "imap"}
+
+
 def feed_text_map(client: PoliteClient, slugs: set[str]) -> dict[str, str]:
     """url -> body text, re-read from the feeds. Best effort."""
     mapping: dict[str, str] = {}
     for source in registry.load():
         if source.config.slug not in slugs or not source.collectable:
+            continue
+        if source.config.adapter not in _TEXT_BEARING_ADAPTERS:
             continue
         try:
             for item in registry.build_adapter(source, client).fetch():
