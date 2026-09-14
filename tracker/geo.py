@@ -85,5 +85,21 @@ class PlaceGazetteer:
     def codes(self) -> set[str]:
         return set(self._index.values())
 
+    def tokens(self) -> set[str]:
+        """Every word appearing in any place surface.
+
+        `find` matches whole surfaces, which is right for reading a place out
+        of prose. A URL slug has already been split on hyphens, so "hong" and
+        "kong" arrive separately and neither is a surface. Callers filtering
+        slug tokens need the word level, and building it by hand in each
+        caller is how "hong kong" ended up being read as a person's name.
+        """
+        words: set[str] = set()
+        for surface in list(self._index) + list(self._skip):
+            for word in re.split(r"[^a-z]+", surface.lower()):
+                if len(word) > 1:
+                    words.add(word)
+        return words
+
     def __len__(self) -> int:
         return len(self._index)

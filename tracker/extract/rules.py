@@ -248,6 +248,98 @@ NON_PARTNER_TITLE = re.compile(
 _PARTNER_WORD = re.compile(r"\b(?:partner|principal)\b", re.IGNORECASE)
 
 
+# Verbs and counting words that appear in a slug without naming anybody.
+# Separate from NOT_A_PERSON because that list guards a person *slot* in
+# prose, where these forms do not occur.
+_SLUG_VERBS = frozenset({
+    "promotes", "joins", "expands", "hires", "makes", "reshuffles", "boosts",
+    "adds", "names", "lures", "welcomes", "recruits", "grows", "launches",
+    "opens", "relaunch", "appoints", "bolsters", "strengthens", "taps",
+    "onboards", "returns", "rejoins", "lands", "brings", "elevates", "beefs",
+    "tops", "lifts", "gains", "picks", "snaps", "nabs", "two", "three", "four",
+})
+
+
+# Outlets whose URLs slug the entities in the story rather than the headline.
+# Asia Business Law Journal writes law.asia/{firm}-{person}-{place}; the
+# Australasian Lawyer writes the whole headline, so its slug residue is
+# ordinary prose -- "chief transformation officer", "massive promotions",
+# "record third" -- and reading that as a contradicting name would have
+# dropped five genuine Bartier Perry partners from one article. The check is
+# therefore opt-in per source rather than applied to every URL.
+ENTITY_SLUG_SOURCES = frozenset({
+    "asia-business-law-journal-archive",
+    "asia-business-law-journal",
+})
+
+
+def slug_names_someone_else(
+    source_slug: str, url: str, person: str, body: str, gazetteer
+) -> str | None:
+    """The person an outlet's URL slug names, when it is not `person`.
+
+    Asia Business Law Journal slugs its articles {firm}-{person}-{place}, so
+    the subject of the piece is in the URL. Extraction reads the body, and a
+    body mentions partners who are not the subject: an existing partner giving
+    a quote, an earlier hire the piece refers back to, a lift-out reported last
+    December. Eighteen of 208 stored ABLJ records named somebody the article's
+    own slug contradicts: the row carried a partner quoted further down the
+    piece while the slug, and the article, named the person who had moved.
+
+    Returns the slug's name so the caller can abstain and say why, or None
+    when the slug agrees, names nobody, or names somebody the body never
+    mentions. All three of those are reasons not to act:
+
+    - agrees: nothing to decide.
+    - names nobody: "herbert-smith-project-finance-partner-singapore" leaves
+      no residual once firms, places and verbs are removed, and inventing a
+      contradiction out of "project finance" would drop a true record.
+    - names somebody absent from the body: the slug may be stale or wrong,
+      and the body is the evidence we actually read.
+    """
+    if source_slug not in ENTITY_SLUG_SOURCES:
+        return None
+    if not url or not person or not body:
+        return None
+
+    from tracker.sources.sitemap import headline_from_slug
+
+    slug = (headline_from_slug(url) or "").lower()
+    if not slug:
+        return None
+
+    # Two-letter tokens count. Plenty of surnames in this corpus are two
+    # letters, so a three-letter floor drops half of a name and leaves the
+    # slug looking as though it names nobody. The exclusion sets below use
+    # the same floor, so short non-name tokens are still filtered.
+    slug_tokens = [t for t in re.split(r"[^a-z]+", slug) if len(t) >= 2]
+    if not slug_tokens:
+        return None
+
+    person_tokens = {t for t in re.split(r"[^a-z]+", person.lower()) if len(t) >= 2}
+    if not person_tokens or (person_tokens & set(slug_tokens)):
+        return None
+
+    excluded = (
+        NOT_A_PERSON
+        | _SLUG_VERBS
+        | gazetteer.tokens()
+        | PLACES.tokens()
+        | person_tokens
+    )
+    residual = [t for t in slug_tokens if t not in excluded]
+    if len(residual) < 2:
+        return None
+
+    # The decisive test: the slug's name has to be in the text we read. A
+    # first and last name adjacent, as the article would write them.
+    candidate = f"{residual[0]} {residual[1]}"
+    if re.search(rf"(?<!\w){re.escape(residual[0])}\s+{re.escape(residual[1])}(?!\w)",
+                 body, re.IGNORECASE):
+        return candidate
+    return None
+
+
 def is_partner_level(title: str | None) -> bool:
     """Whether a captured title describes a partner-level appointment.
 
@@ -484,6 +576,22 @@ class RuleExtractor:
             person_start = hit.person_start
             person_end = person_start + len(person)
             if hit.title and not is_partner_level(hit.title):
+                continue
+
+            # The body names partners who are not the subject of the piece:
+            # an existing partner quoted on the hire, an earlier arrival the
+            # article refers back to. When the outlet's own URL slug names a
+            # different person and the body confirms that person exists, this
+            # is the wrong one and there is nothing to repair -- every other
+            # field was read from the same sentence.
+            contradicted = slug_names_someone_else(
+                item.source_slug, item.url, person, body, self.gazetteer
+            )
+            if contradicted:
+                log.debug(
+                    "body hit %r abstained: the slug of %s names %r",
+                    person, item.url, contradicted,
+                )
                 continue
 
             # Origin, best evidence first: this person's own sentence, then

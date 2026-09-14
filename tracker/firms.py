@@ -78,6 +78,19 @@ class FirmGazetteer:
         ]
         return cls(entries=entries).build()
 
+    def tokens(self) -> set[str]:
+        """Every word appearing in any firm surface, for slug filtering.
+
+        Word level rather than surface level, for the same reason as the
+        place gazetteer: a URL slug arrives already split on hyphens.
+        """
+        words: set[str] = set()
+        for surface in self._index:
+            for word in re.split(r"[^a-z]+", surface.lower()):
+                if len(word) > 1:
+                    words.add(word)
+        return words
+
     def build(self) -> FirmGazetteer:
         index: dict[str, str] = {}
         for entry in self.entries:
