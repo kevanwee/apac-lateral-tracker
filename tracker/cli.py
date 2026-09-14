@@ -679,6 +679,20 @@ def reextract_cmd(slug: str | None, do_apply: bool, reason: str) -> None:
             WHERE NOT EXISTS (SELECT 1 FROM moves m WHERE m.person_id = p.id)
             """
         ).rowcount
+        # A team move whose members have just been discarded is not a team
+        # move any more. The trigger recomputes partner_count to zero on the
+        # delete but cannot remove the row, so it survives as a lift-out with
+        # nobody in it and trips `team_move_with_fewer_than_two_partners`.
+        # Same orphan class as the people rows above, same treatment.
+        empty_teams = conn.execute(
+            """
+            DELETE FROM team_moves tm
+            WHERE NOT EXISTS (
+                SELECT 1 FROM moves m
+                WHERE m.team_move_id = tm.id AND m.superseded_by_move_id IS NULL
+            )
+            """
+        ).rowcount
         reset = conn.execute(
             f"""
             UPDATE raw_items ri SET processing_state = 'new', reject_reason = NULL,
@@ -695,7 +709,8 @@ def reextract_cmd(slug: str | None, do_apply: bool, reason: str) -> None:
 
     click.echo("")
     click.echo(
-        f"discarded {deleted} move(s) and {orphans} person row(s) left without one; "
+        f"discarded {deleted} move(s), {orphans} person row(s) and "
+        f"{empty_teams} emptied team move(s); "
         f"{reset} item(s) marked for extraction again"
     )
     click.echo(f"reason: {reason}")
