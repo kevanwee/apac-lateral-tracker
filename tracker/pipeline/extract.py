@@ -550,9 +550,12 @@ def _persist(
         from tracker.extract import body_rules
 
         body = item.body_text if item is not None else None
+        # The item carries the page headline when one was read; the row still
+        # holds the slug it was ingested with, which names no practice.
+        headline = item.headline if item is not None else row["headline"]
         evidence = [
             ("stated", move.value("practice_text")),
-            ("headline", row["headline"]),
+            ("headline", headline),
             ("body", body_rules.sentences_about(person_name, body) if body else None),
         ]
         unplaced = _classify(conn, move_id, row["id"], evidence, taxonomy)
