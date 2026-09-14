@@ -273,6 +273,53 @@ ENTITY_SLUG_SOURCES = frozenset({
 })
 
 
+# Phrases that make the mention after them a reference back to an earlier
+# event rather than the one being reported. Every one is taken from a stored
+# record that named the wrong partner.
+#
+# Neutral phrases are deliberately absent. "the arrival of", "the hiring of"
+# and "the recruitment of" introduce the subject of the piece as often as they
+# refer back to somebody else, and including them flagged three articles whose
+# opening sentence is exactly that shape.
+_BACKWARD_CUE = re.compile(
+    r"\b(?:follows?|following|comes? after"
+    r"|earlier this year|last year|last month"
+    r"|in\s+(?:january|february|march|april|may|june|july|august|september"
+    r"|october|november|december)"
+    r"|also\s+(?:welcomed|hired|added|recruited|appointed)"
+    r"|previously|prior to|had\s+(?:joined|hired))\b",
+    re.IGNORECASE,
+)
+
+# How close the cue has to sit to the name to be said to govern it. Beyond
+# this the two are unrelated halves of a long sentence.
+_CUE_REACH = 60
+
+
+def mention_is_backward_looking(body: str, person_start: int) -> str | None:
+    """The cue introducing this mention as an earlier event, if there is one.
+
+    An article about one hire routinely names other partners: the piece ends
+    by noting who else arrived this year. Those sentences read exactly like
+    movement sentences, because they describe movements -- just not the one
+    the article is reporting, and usually not in the period the record would
+    be dated to.
+
+    The cue has to precede the name, inside the same sentence, and close
+    enough to be the thing introducing it. Requiring only that a cue appear
+    somewhere in the sentence flagged opening lines whose cue sat after the
+    name, which would have dropped true records.
+    """
+    if not body or person_start <= 0:
+        return None
+    sentence_start = body.rfind(".", 0, person_start) + 1
+    clause = body[sentence_start:person_start]
+    for cue in _BACKWARD_CUE.finditer(clause):
+        if len(clause) - cue.end() <= _CUE_REACH:
+            return cue.group(0)
+    return None
+
+
 def slug_names_someone_else(
     source_slug: str, url: str, person: str, body: str, gazetteer
 ) -> str | None:
@@ -591,6 +638,18 @@ class RuleExtractor:
                 log.debug(
                     "body hit %r abstained: the slug of %s names %r",
                     person, item.url, contradicted,
+                )
+                continue
+
+            # The same problem without a slug to settle it: the sentence
+            # introduces this person as somebody who arrived earlier, not as
+            # the move being reported. The record would carry the right person
+            # against the wrong firm pair and the wrong date.
+            backward = mention_is_backward_looking(body, hit.person_start)
+            if backward:
+                log.debug(
+                    "body hit %r abstained: introduced by %r, an earlier event",
+                    person, backward,
                 )
                 continue
 
