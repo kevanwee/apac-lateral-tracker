@@ -104,10 +104,33 @@ WITHOUT_ORIGIN = [
     ),
     (
         # "adds former Dechert's partner Stephen Chan to its corporate practice"
+        #
+        # Both tenses. A headline writes "adds"; the body it introduces writes
+        # "has added", "has recruited", "has taken onboard". Only the present
+        # tense was listed, so the shape that carries the name most often --
+        # a body sentence -- never matched. Measured on the rejected items,
+        # this was the largest single template gap.
         "adds_named_role",
-        rf"(?:adds|appoints|hires|recruits|welcomes|lands|onboards)\s+"
+        rf"(?:add(?:s|ed)|appoint(?:s|ed)|hire[sd]|recruit(?:s|ed)|"
+        rf"welcome[sd]|land(?:s|ed)|onboard(?:s|ed)|taken\s+onboard|"
+        rf"tak(?:es|en)\s+on|brought\s+(?:in|on\s+board)|sign(?:s|ed))\s+"
         rf"(?:former\s+|ex-)?[\w'’\- ]{{0,40}}?"
-        rf"(?:partner|counsel|principal|head)\s+(?P<person>{_PERSON})\b",
+        rf"(?:partner|counsel|principal|head|lawyer|practitioner|specialist)"
+        rf"\s+(?P<person>{_PERSON})\b",
+    ),
+    (
+        # "with the addition of aviation lawyer Ethan Tan as a partner"
+        #
+        # `addition_of` requires the name to follow "of" directly, so any role
+        # phrase in between defeated it. Kept separate rather than loosening
+        # that rule, because the role word is what makes this one safe: it is
+        # the evidence that the noun being introduced is a lawyer and not a
+        # practice, an office or a client.
+        "addition_of_role",
+        rf"(?:addition|arrival|appointment|hiring|recruitment)\s+of\s+"
+        rf"(?:[\w'’\-]+\s+){{0,4}}?"
+        rf"(?:partner|counsel|principal|head|lawyer|practitioner|specialist)\s+"
+        rf"(?P<person>{_PERSON})\b",
     ),
     (
         "led_by",

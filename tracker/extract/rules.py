@@ -60,7 +60,7 @@ log = logging.getLogger(__name__)
 #   2.1.1  a firm followed by a loss cue ("Blow for X as partners exit") is
 #          the origin, never the destination; classification reads the page
 #          headline rather than the ingested slug
-RULES_VERSION = "rules/2.4.0"
+RULES_VERSION = "rules/2.5.0"
 
 # Loaded once: the place gazetteer is read-only and shared.
 PLACES = PlaceGazetteer.load()
