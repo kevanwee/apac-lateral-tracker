@@ -287,6 +287,19 @@ _DEST_CUE = re.compile(
 )
 
 
+# Cues that mark the firm *before* them as the origin. "Blow for Ashurst as
+# two senior partners exit" names one firm and a loss; the leads-with-the-
+# hirer fallback recorded Ashurst as the destination. Checked on the text
+# after the mention, out to the end of the clause.
+_ORIGIN_CUE_AFTER = re.compile(
+    r"^\s+(?:as\s+)?(?:[\w'’-]+\s+){0,6}?"
+    r"(?:exits?|exodus|departs?|departures?|quits?|leaves?|loses|lost|"
+    r"walks?\s+out|jumps?\s+ship|defects?|haemorrhages?|hemorrhages?)\b"
+)
+# The mention is preceded by a loss phrase: "Blow for Ashurst".
+_LOSS_BEFORE = re.compile(r"\b(?:blow\s+(?:for|to)|setback\s+for|loss\s+for)\s+$")
+
+
 def firm_pair(headline: str, gazetteer: FirmGazetteer) -> tuple[str | None, str | None]:
     """(destination, origin) from a headline naming one or two firms.
 
@@ -307,7 +320,12 @@ def firm_pair(headline: str, gazetteer: FirmGazetteer) -> tuple[str | None, str 
 
     for match in matches:
         preceding = normalised[: match.start]
-        if _ORIGIN_CUE.search(preceding):
+        following = normalised[match.end:]
+        if (
+            _ORIGIN_CUE.search(preceding)
+            or _LOSS_BEFORE.search(preceding)
+            or _ORIGIN_CUE_AFTER.search(following)
+        ):
             origin = origin or match.canonical_name
         elif _DEST_CUE.search(preceding):
             destination = destination or match.canonical_name

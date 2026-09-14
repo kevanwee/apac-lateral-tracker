@@ -101,6 +101,36 @@ def test_former_is_an_origin_cue(gazetteer):
     assert origin == "Norton Rose Fulbright"
 
 
+@pytest.mark.parametrize(
+    "headline",
+    [
+        "Blow for Ashurst as two senior partners exit",
+        "Ashurst loses two senior partners",
+        "Two partners quit Ashurst",
+        "Ashurst departures continue as energy duo leaves",
+    ],
+)
+def test_a_firm_that_is_losing_people_is_never_the_destination(headline, gazetteer):
+    """Found on a random 15-record spot check of rules/2.1.0 output.
+
+    The cue words sat *after* the firm and firm_pair only read the words
+    before it, so the leads-with-the-hirer fallback made the losing firm the
+    destination. With one firm named and it being the origin, the right
+    answer is no destination — and therefore no record — not a guess.
+    """
+    destination, origin = body_rules.firm_pair(headline, gazetteer)
+    assert origin == "Ashurst"
+    assert destination is None
+
+
+def test_a_loss_headline_naming_both_firms_gets_the_direction_right(gazetteer):
+    destination, origin = body_rules.firm_pair(
+        "Blow for Ashurst as energy partners exit for Herbert Smith Freehills", gazetteer
+    )
+    assert origin == "Ashurst"
+    assert destination == "Herbert Smith Freehills Kramer"
+
+
 def test_hiring_firm_still_leads_by_default(gazetteer):
     destination, origin = body_rules.firm_pair(
         "Ogletree Deakins adds partner trio from rival Littler", gazetteer
