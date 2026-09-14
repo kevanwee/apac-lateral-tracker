@@ -12,6 +12,7 @@ from datetime import datetime
 
 import psycopg
 
+from tracker import db
 from tracker.firms import FirmGazetteer
 from tracker.gate import GATE_VERSION, evaluate, evaluate_entity_slug
 from tracker.geo import PlaceGazetteer
@@ -271,15 +272,23 @@ def _ingest_one(
     try:
         items = list(adapter.fetch(since=since))
         fetched = len(items)
+        # The fetch above can run for minutes at the 10s floor. Reclaim a live
+        # connection before writing rather than discovering it died.
+        conn = db.live(conn, direct=True)
+        recorder.conn = conn
     except RobotsDisallowed as exc:
         # Politeness, not failure. Recorded so a zero yield caused by robots
         # is never mistaken for a broken feed.
+        conn = db.live(conn, direct=True)
+        recorder.conn = conn
         log.info("%s: %s", source.config.slug, exc)
         recorder.source_yield(
             row["id"], fetched=0, new=0, gate_passed=0, skipped_reason=str(exc)[:200]
         )
         return
     except Exception as exc:  # noqa: BLE001 - one bad source must not end the run
+        conn = db.live(conn, direct=True)
+        recorder.conn = conn
         log.warning("%s: fetch failed: %s", source.config.slug, exc)
         recorder.fail(source.config.slug, f"{type(exc).__name__}: {exc}")
         recorder.source_yield(
