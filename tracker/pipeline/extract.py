@@ -165,6 +165,12 @@ def run(
             cached = cache.get(row["url"])
             if cached is not None:
                 body = (cached.get("body") if isinstance(cached, dict) else cached) or None
+                # The cache stores the parsed body, so a hit would otherwise
+                # replay whatever `body_of` did on the day it was written. Any
+                # trailing furniture a later marker would now cut is still in
+                # there; re-trimming on read is idempotent and costs no fetch.
+                if body:
+                    body = article.trim_tail(body) or None
                 if isinstance(cached, dict) and cached.get("title"):
                     headline = cached["title"]
             elif client is not None:

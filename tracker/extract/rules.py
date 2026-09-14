@@ -57,7 +57,10 @@ log = logging.getLogger(__name__)
 #   2.0.0  headline templates plus body reading
 #   2.1.0  firm-boundary fix, direction cues, person-slot cleaning, headline
 #          jurisdiction on the body path
-RULES_VERSION = "rules/2.1.0"
+#   2.1.1  a firm followed by a loss cue ("Blow for X as partners exit") is
+#          the origin, never the destination; classification reads the page
+#          headline rather than the ingested slug
+RULES_VERSION = "rules/2.2.0"
 
 # Loaded once: the place gazetteer is read-only and shared.
 PLACES = PlaceGazetteer.load()
@@ -210,6 +213,53 @@ PARTNER_LEVEL_TITLE = re.compile(
     r"principal|director|general\s+counsel|gc\b|clo\b|silk|kc\b|qc\b|sc\b)",
     re.IGNORECASE,
 )
+
+# Titles that contain a partner-level *word* without being partner-level.
+#
+# PARTNER_LEVEL_TITLE accepts bare "counsel" and bare "director", which is how
+# 17 records entered the dataset for appointments the articles plainly
+# describe as something else: "of counsel at its Hong Kong office", "patent
+# counsel in Beijing", "its newest counsel", "special counsel", "the firm's
+# first director of global workforce", "its executive director of licencing".
+# None of those is a partner move, and the brief is partner-level movement.
+#
+# Checked before the positive test and it wins, so adding a form here removes
+# it whatever else the clause says.
+NON_PARTNER_TITLE = re.compile(
+    r"\b(?:"
+    r"of\s+counsel"
+    r"|(?:special|senior|patent|international|legal|corporate|in-house)\s+counsel"
+    # A bare "counsel" with nothing making it general counsel or a partner.
+    r"|(?<!general\s)(?<!\w)counsel(?!\s*\()"
+    # "associate partner" is partner-level in some firms; a plain associate,
+    # senior or otherwise, is not.
+    r"|(?:senior\s+)?associate(?!\s+partner)"
+    r"|paralegal|trainee|secondee|graduate|intern"
+    # "Director" alone is partner-equivalent in an incorporated legal practice,
+    # so only a director *of a named function* is excluded.
+    r"|(?:executive\s+)?director\s+of\s+\w+"
+    r"|executive\s+director"
+    r"|chief\s+\w+\s+officer"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# The words that override the exclusion above when both appear.
+_PARTNER_WORD = re.compile(r"\b(?:partner|principal)\b", re.IGNORECASE)
+
+
+def is_partner_level(title: str | None) -> bool:
+    """Whether a captured title describes a partner-level appointment.
+
+    An explicit non-partner form wins unless the same clause also says
+    partner: "partner and head of counsel training" is a partner, "of counsel
+    to join its litigation team" is not.
+    """
+    if not title:
+        return False
+    if NON_PARTNER_TITLE.search(title) and not _PARTNER_WORD.search(title):
+        return False
+    return bool(PARTNER_LEVEL_TITLE.search(title))
 
 # Ordered most specific first; the first template that matches wins. The
 # multi-person forms lead, because their single-person twins would otherwise
@@ -433,7 +483,7 @@ class RuleExtractor:
             # has to shrink with it or it would cite more than the value.
             person_start = hit.person_start
             person_end = person_start + len(person)
-            if hit.title and not PARTNER_LEVEL_TITLE.search(hit.title):
+            if hit.title and not is_partner_level(hit.title):
                 continue
 
             # Origin, best evidence first: this person's own sentence, then
@@ -560,7 +610,7 @@ class RuleExtractor:
         if groups.get("title") and not title:
             # A clause with no recognisable title is not a partner appointment.
             return None
-        if title and not PARTNER_LEVEL_TITLE.search(title):
+        if title and not is_partner_level(title):
             log.debug("%s: %r is not a partner-level title, abstaining", rule_name, title)
             return None
 

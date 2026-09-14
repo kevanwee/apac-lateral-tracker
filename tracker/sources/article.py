@@ -111,6 +111,30 @@ def body_of(html_source: str) -> str | None:
     match = _BYLINE.search(text)
     body = text[match.end():] if match else text
 
+    body = trim_tail(body)
+
+    if len(body) < MIN_USEFUL_LENGTH:
+        return None
+    return body[:BODY_CHAR_LIMIT]
+
+
+def trim_tail(body: str) -> str:
+    """Cut trailing page furniture: related-article rails, footers, promos.
+
+    Separate from `body_of` because it has to be re-appliable to text that has
+    already been through it. The article cache stores the *parsed* body, so a
+    cache hit skips `body_of` entirely and text parsed by an older version of
+    this file is replayed forever. That is not hypothetical: 129 of 1,586
+    cached bodies still carried a "RELATED ARTICLES / MORE FROM AUTHOR" rail
+    after these markers were added, 286,664 characters of other articles'
+    headlines that the extractor read as body prose. Eleven stored moves named
+    a partner who appears nowhere but in that rail -- including one person
+    attached to four unrelated articles.
+
+    Cutting is idempotent: running it on already-cut text finds no marker and
+    changes nothing, so the cache can be repaired on read without refetching
+    1,586 pages at the 10 s-per-origin floor.
+    """
     lowered = body.lower()
     cut = len(body)
     for marker in _TAIL_MARKERS:
@@ -118,11 +142,7 @@ def body_of(html_source: str) -> str | None:
         # Only trust a marker that appears after some real content.
         if found > MIN_USEFUL_LENGTH:
             cut = min(cut, found)
-    body = body[:cut].strip()
-
-    if len(body) < MIN_USEFUL_LENGTH:
-        return None
-    return body[:BODY_CHAR_LIMIT]
+    return body[:cut].strip()
 
 
 # ---------------------------------------------------------------------------
