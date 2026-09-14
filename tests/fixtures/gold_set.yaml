@@ -1109,3 +1109,1083 @@ records:
       A merger is not twelve lateral moves and must not show up in the firm
       flow matrix as one. move_type merger_absorbed exists to keep it out.
       Surname-first Cantonese name ordering.
+
+  # =====================================================================
+  # Item-level ground truth — sampled 2026-09-14, seed 4242
+  #
+  # Forty gate-passed ITEMS drawn uniformly at random from all 1,639, not
+  # forty extractor outputs. The distinction is the whole point: a fixture
+  # built from records the extractor produced can only confirm what it
+  # already got right, so recall is unmeasurable and precision is inflated
+  # by selection. Sampling items puts the misses in the fixture too — and
+  # on the corpus these came from, the misses were most of it.
+  #
+  # Fourteen of the forty report no partner-level move at all. Those are
+  # kept, and carry `is_movement: false`, because an evaluation holding
+  # only true positives cannot see a false one.
+  #
+  # Firm names here are the surface the article uses, not the gazetteer's
+  # canonical name, because `expect` must be readable out of `text` and
+  # nothing else. The evaluator resolves both sides through the gazetteer
+  # before comparing, so "Allen & Overy" and "Allen & Overy Shearman"
+  # count as agreement.
+  # =====================================================================
+  - id: gold-i001
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/sparke-helmore-promotes-four-to-partnership/426364
+    published_at: 2022-11-04 00:00:00+00:00
+    headline: Sparke helmore promotes four to partnership
+    text: Ian Bennett, Catherine Morton, Jehan Mata and Andrew Ferguson recently joined the partnership,
+      operating from the firm's Perth, Sydney, Melbourne and Newcastle offices.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Ian Bennett
+        from_firm: Sparke Helmore
+        to_firm: Sparke Helmore
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: null
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+      - person_name: Catherine Morton
+        from_firm: Sparke Helmore
+        to_firm: Sparke Helmore
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: null
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+      - person_name: Jehan Mata
+        from_firm: Sparke Helmore
+        to_firm: Sparke Helmore
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: null
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+      - person_name: Andrew Ferguson
+        from_firm: Sparke Helmore
+        to_firm: Sparke Helmore
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: null
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+    note: Four promotions in one sentence. The extractor found none of them.
+  - id: gold-i002
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/hong-kong-stablecoin-rules-mainland-china/
+    published_at: 2025-11-06 08:37:44+00:00
+    headline: Impact of HK stablecoin rules on mainland China
+    text: On 1 August 2025 the Hong Kong Stablecoin Ordinance came into force, marking Hong Kong as one
+      of the first jurisdictions to licence stablecoin issuers.
+    expect:
+      is_movement: false
+      moves: []
+      not_movement_reason: Regulatory explainer. Correctly yields nothing.
+    note: Regulatory explainer. Correctly yields nothing.
+  - id: gold-i003
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/finance-partner-marisa-sotomayor-joins-king-spalding-in-new-york/418415
+    published_at: 2022-08-29 00:00:00+00:00
+    headline: Finance partner marisa sotomayor joins king spalding in new york
+    text: King & Spalding has welcomed Marisa Sotomayor as a partner in its corporate, finance and investments
+      practice group. She is based in New York.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Marisa Sotomayor
+        from_firm: null
+        to_firm: King & Spalding
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: US
+        practice_text: corporate, finance and investments
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: finance
+        secondary_practice_groups: []
+        sectors: []
+    note: Destination firm was absent from the gazetteer when this was sampled.
+  - id: gold-i004
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/kl-gates-elevates-four-australian-lawyers-to-partner/206571
+    published_at: 2019-03-05 00:00:00+00:00
+    headline: Kl gates elevates four australian lawyers to partner
+    text: K&L Gates has promoted Savannah Hardingham and Daniel Knight in Melbourne, as well as Kirstie
+      Richards and Lucy Shanahan in Sydney.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Savannah Hardingham
+        from_firm: K&L Gates
+        to_firm: K&L Gates
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: AU-VIC
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+      - person_name: Daniel Knight
+        from_firm: K&L Gates
+        to_firm: K&L Gates
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: AU-VIC
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+      - person_name: Kirstie Richards
+        from_firm: K&L Gates
+        to_firm: K&L Gates
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: AU-NSW
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+      - person_name: Lucy Shanahan
+        from_firm: K&L Gates
+        to_firm: K&L Gates
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: AU-NSW
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+    note: One sentence carrying four promotions.
+  - id: gold-i005
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/china-hong-kong-top-lawyers-nomination-2026/
+    published_at: 2026-06-11 05:06:19+00:00
+    headline: Vote now for China’s elite lawyers
+    text: China Business Law Journal is seeking nominations to identify the elite private practice lawyers
+      in the Chinese mainland and Hong Kong.
+    expect:
+      is_movement: false
+      moves: []
+      not_movement_reason: Awards solicitation. Correctly yields nothing.
+    note: Awards solicitation. Correctly yields nothing.
+  - id: gold-i006
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/melbourne-lawyer-makes-partner-in-massive-promotions-round-at-pinsent-masons/484132
+    published_at: 2024-04-08 00:00:00+00:00
+    headline: Melbourne lawyer makes partner in massive promotions round at pinsent masons
+    text: Melbourne lawyer Nicole Whitby has been promoted to partner as part of a massive promotions round
+      at Pinsent Masons.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Nicole Whitby
+        from_firm: Pinsent Masons
+        to_firm: Pinsent Masons
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: AU-VIC
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i007
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/global-firm-simmons-simmons-names-emily-monastiriotis-as-its-new-managing-partner/527581
+    published_at: 2025-03-07 00:00:00+00:00
+    headline: Global firm simmons simmons names emily monastiriotis as its new managing partner
+    text: Global firm Simmons & Simmons has elected international head of dispute resolution Emily Monastiriotis
+      as its new managing partner.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Emily Monastiriotis
+        from_firm: Simmons & Simmons
+        to_firm: Simmons & Simmons
+        title_from: null
+        title_to: managing partner
+        partner_tier: undisclosed
+        office_jurisdiction: null
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: disputes
+        secondary_practice_groups: []
+        sectors: []
+    note: Leadership elevation inside one firm, so a promotion rather than a lateral.
+  - id: gold-i008
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/covington-mayer-brown-defend-tiktok-us-ban/
+    published_at: 2024-06-05 07:36:35+00:00
+    headline: Covington and Mayer Brown defend TikTok from US ban
+    text: Seven partners from Covington & Burling and Mayer Brown are countering Washington's move against
+      TikTok and its parent company ByteDance.
+    expect:
+      is_movement: false
+      moves: []
+      not_movement_reason: Litigation story, not a hire. The extractor made a record from it.
+    note: Litigation story, not a hire. The extractor made a record from it.
+  - id: gold-i009
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/dispute-partner-joins-hong-kong-reed-smith/
+    published_at: 2026-03-27 10:31:50+00:00
+    headline: Dispute partner joins Reed Smith in Hong Kong
+    text: Reed Smith Richards Butler recently recruited Stephen Chan as a partner in its litigation practice
+      in the Hong Kong office.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Stephen Chan
+        from_firm: null
+        to_firm: Reed Smith
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: HK
+        practice_text: litigation
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: disputes
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i010
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/scott-tan-joins-rajah-tann-singapore-international-arbitration/
+    published_at: 2026-07-21 01:22:30+00:00
+    headline: Rajah & Tann Singapore hires ‘rare find’ arbitration partner
+    text: Rajah & Tann Singapore has bolstered its international arbitration practice with the appointment
+      of partner Scott Tan.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Scott Tan
+        from_firm: null
+        to_firm: Rajah & Tann Singapore
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: SG
+        practice_text: international arbitration
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: disputes.international_arbitration
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i011
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/hfw-australia-maurice-thompson/
+    published_at: 2024-01-25 23:42:23+00:00
+    headline: HFW consolidates Australia presence with eight hires
+    text: HFW welcomes partner Maurice Thompson back to the fold, joining from Clyde & Co with a background
+      in Australia and the Middle East.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Maurice Thompson
+        from_firm: Clyde & Co
+        to_firm: HFW
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: AU
+        practice_text: null
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+    note: He brings a team of seven, none of whom the article names.
+  - id: gold-i012
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/allen-overy-adds-new-partner-to-office-in-hong-kong/245605
+    published_at: 2021-02-04 00:00:00+00:00
+    headline: Allen overy adds new partner to office in hong kong
+    text: Allen & Overy has expanded its Asia-Pacific funds group with the appointment of James Ford as
+      a partner at its Hong Kong office.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: James Ford
+        from_firm: null
+        to_firm: Allen & Overy
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: HK
+        practice_text: funds
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: corporate
+        secondary_practice_groups: []
+        sectors: []
+    note: The origin firm is stated elsewhere in the article, not in this excerpt.
+  - id: gold-i013
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/cooper-grace-ward-appoints-deputy-managing-partner/236935
+    published_at: 2020-10-21 00:00:00+00:00
+    headline: Cooper grace ward appoints deputy managing partner
+    text: Cooper Grace Ward has appointed Charles Sweeney as deputy managing partner.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Charles Sweeney
+        from_firm: Cooper Grace Ward
+        to_firm: Cooper Grace Ward
+        title_from: null
+        title_to: deputy managing partner
+        partner_tier: undisclosed
+        office_jurisdiction: AU-QLD
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i014
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/clyde-co-appoints-new-partner-in-sydney/403723
+    published_at: 2022-04-26 00:00:00+00:00
+    headline: Clyde co appoints new partner in sydney
+    text: Clyde & Co has expanded its global projects and construction offering with the appointment of
+      Phillip Coady as a partner in its Sydney office.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Phillip Coady
+        from_firm: null
+        to_firm: Clyde & Co
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: AU-NSW
+        practice_text: projects and construction
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: real_assets.projects
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i015
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/mills-oakley-follows-up-launch-of-new-practice-with-another-lateral-hire-from-global-firm/211767
+    published_at: 2020-01-29 00:00:00+00:00
+    headline: Mills oakley follows up launch of new practice with another lateral hire from global firm
+    text: Mills Oakley has added another partner. Richard Cohen has joined the firm in Sydney, making the
+      move from Norton Rose Fulbright.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Richard Cohen
+        from_firm: Norton Rose Fulbright
+        to_firm: Mills Oakley
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: AU-NSW
+        practice_text: null
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i016
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/practice-areas/restructuring-and-insolvency/velocity-legal-welcomes-new-director-from-rigby-cooke/470863
+    published_at: 2024-08-09 00:00:00+00:00
+    headline: Velocity legal welcomes new director from rigby cooke
+    text: Velocity Legal has appointed former Rigby Cooke special counsel Seamus Ryan as its newest director.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Seamus Ryan
+        from_firm: Rigby Cooke
+        to_firm: Velocity Legal
+        title_from: null
+        title_to: director
+        partner_tier: undisclosed
+        office_jurisdiction: AU-VIC
+        practice_text: null
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: unclassified
+        secondary_practice_groups: []
+        sectors: []
+    note: Director is the partner grade at an incorporated practice. The sentence also carries his former
+      title, which makes the non-partner guard abstain.
+  - id: gold-i017
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/practice-areas/employment-and-labour/seyfarth-elevates-two-sydney-and-melbourne-based-lawyers-to-partners/433048
+    published_at: 2023-01-17 00:00:00+00:00
+    headline: Seyfarth elevates two sydney and melbourne based lawyers to partners
+    text: Melbourne-based Justine Giuliani was recently named partner. Philippa Noakes was named partner
+      in the Seyfarth Shaw Sydney office.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Justine Giuliani
+        from_firm: Seyfarth Shaw
+        to_firm: Seyfarth Shaw
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: AU-VIC
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: employment
+        secondary_practice_groups: []
+        sectors: []
+      - person_name: Philippa Noakes
+        from_firm: Seyfarth Shaw
+        to_firm: Seyfarth Shaw
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: AU-NSW
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: employment
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i018
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/practice-areas/corporate-and-ma/keypoint-law-welcomes-senior-lawyer-from-hwl-ebsworth/456296
+    published_at: 2023-08-15 00:00:00+00:00
+    headline: Keypoint law welcomes senior lawyer from hwl ebsworth
+    text: Former HWL Ebsworth partner Derek Sutherland has joined Keypoint Law's Queensland office as a
+      consulting principal.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Derek Sutherland
+        from_firm: HWL Ebsworth
+        to_firm: Keypoint Law
+        title_from: null
+        title_to: consulting principal
+        partner_tier: undisclosed
+        office_jurisdiction: AU-QLD
+        practice_text: null
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: corporate
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i019
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/arnold-porter-adds-chee-kwan-kim-seoul/
+    published_at: 2026-08-05 01:31:52+00:00
+    headline: Arnold & Porter adds former Yulchon partner in Seoul
+    text: Arnold & Porter has strengthened its corporate and finance practice in South Korea with the appointment
+      of Chee-Kwan Kim as a partner in Seoul.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Chee-Kwan Kim
+        from_firm: Yulchon
+        to_firm: Arnold & Porter
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: KR
+        practice_text: corporate and finance
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: corporate.m_and_a
+        secondary_practice_groups: []
+        sectors: []
+    note: Destination firm was absent from the gazetteer when this was sampled.
+  - id: gold-i020
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/practice-areas/ip/spruson-ferguson-australia-gets-new-principal-in-promotions-round/496327
+    published_at: 2024-07-09 00:00:00+00:00
+    headline: Spruson ferguson australia gets new principal in promotions round
+    text: Spruson & Ferguson Australia has added a new principal following a recent IPH promotions cycle.
+      Jason Manakis practises with the EICT team.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Jason Manakis
+        from_firm: Spruson & Ferguson
+        to_firm: Spruson & Ferguson
+        title_from: null
+        title_to: principal
+        partner_tier: undisclosed
+        office_jurisdiction: AU
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: intellectual_property.patents
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i021
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/criminal-risk-prevention-real-estate-companies-china/
+    published_at: 2025-06-04 07:50:28+00:00
+    headline: Prevention of criminal legal risks for real estate companies
+    text: Real estate companies are at higher risk of triggering specific criminal offences in the course
+      of land acquisitions, project developments and property sales.
+    expect:
+      is_movement: false
+      moves: []
+      not_movement_reason: Practice article. Correctly yields nothing.
+    note: Practice article. Correctly yields nothing.
+  - id: gold-i022
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/carter-newell-welcomes-two-to-partnership-in-major-promotions-round/236671
+    published_at: 2020-10-19 00:00:00+00:00
+    headline: Carter newell welcomes two to partnership in major promotions round
+    text: Carter Newell has welcomed two to its partnership in a recent promotions round. Lara Radik heads
+      the firm's workplace advisory practice.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Lara Radik
+        from_firm: Carter Newell
+        to_firm: Carter Newell
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: AU-QLD
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: employment
+        secondary_practice_groups: []
+        sectors: []
+    note: The second promoted partner is not named in this excerpt.
+  - id: gold-i023
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/lcwp-ng-jern-fei-kc-king-counsel-malaysia/
+    published_at: 2023-12-20 04:09:23+00:00
+    headline: King’s counsel joins LCWP to boost international arbitration
+    text: Lim Chee Wee Partnership has added Ng Jern-Fei KC to the team, making it the only law firm in
+      Malaysia with a king's counsel.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Ng Jern-Fei KC
+        from_firm: null
+        to_firm: Lim Chee Wee Partnership
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: MY
+        practice_text: international arbitration
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: disputes.international_arbitration
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i024
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/china-pharma-out-licensing-deals/
+    published_at: 2025-10-16 03:04:17+00:00
+    headline: Out-licensing is in
+    text: China's pharmaceutical giants have made out-licensing drugs a major part of their business development
+      strategy as they transition to innovative drugs.
+    expect:
+      is_movement: false
+      moves: []
+      not_movement_reason: Feature article. Correctly yields nothing.
+    note: Feature article. Correctly yields nothing.
+  - id: gold-i025
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/jia-yuan-hires-capital-markets-duo-for-hk-shanghai/
+    published_at: 2025-12-19 06:02:57+00:00
+    headline: Jia Yuan hires capital markets duo for HK, Shanghai
+    text: Jia Yuan Law Offices has recruited Rachel Wang as a senior partner specialising in capital markets
+      and M&A, based in Hong Kong and Shanghai.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Rachel Wang
+        from_firm: null
+        to_firm: Jia Yuan Law Offices
+        title_from: null
+        title_to: senior partner
+        partner_tier: undisclosed
+        office_jurisdiction: HK
+        practice_text: capital markets and M&A
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: finance.ecm
+        secondary_practice_groups: []
+        sectors: []
+    note: The same article hires a counsel, who is correctly out of scope.
+  - id: gold-i026
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/practice-areas/restructuring-and-insolvency/baker-mckenzie-adds-kwm-special-counsel-to-partnership/400435
+    published_at: 2022-03-29 00:00:00+00:00
+    headline: Baker mckenzie adds kwm special counsel to partnership
+    text: Baker McKenzie has appointed former King & Wood Mallesons special counsel Gavin Rakoczy to the
+      partnership, strengthening its restructuring and insolvency team.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Gavin Rakoczy
+        from_firm: King & Wood Mallesons
+        to_firm: Baker McKenzie
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: AU
+        practice_text: restructuring and insolvency
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: finance.restructuring
+        secondary_practice_groups: []
+        sectors: []
+    note: Elevation to the partnership from special counsel, so a partner move.
+  - id: gold-i027
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/uk-bar-standards-board-confirms-director-departures/515972
+    published_at: 2024-11-29 00:00:00+00:00
+    headline: Uk bar standards board confirms director departures
+    text: The UK Bar Standards Board has confirmed the pending departures of two directors as a result of
+      a restructure announced today.
+    expect:
+      is_movement: false
+      moves: []
+      not_movement_reason: Regulator staff, not law firm partners. Out of scope.
+    note: Regulator staff, not law firm partners. Out of scope.
+  - id: gold-i028
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/mou-philippines-china-natural-resource/
+    published_at: 2022-02-25 15:57:14+00:00
+    headline: Philippines-China MoU on natural resource development
+    text: The Philippines and China entered into a memorandum of understanding on co-operation on oil and
+      gas development.
+    expect:
+      is_movement: false
+      moves: []
+      not_movement_reason: Policy article. Correctly yields nothing.
+    note: Policy article. Correctly yields nothing.
+  - id: gold-i029
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/wfw-tokyo-paul-coggins-maritime-partner/
+    published_at: 2026-03-04 06:53:00+00:00
+    headline: Former Norton Rose maritime practice head rejoins WFW
+    text: Watson Farley & Williams has appointed Paul Coggins as a partner in its Tokyo office. Coggins
+      rejoins WFW after 15 years at Norton Rose Fulbright.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Paul Coggins
+        from_firm: Norton Rose Fulbright
+        to_firm: Watson Farley & Williams
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: JP
+        practice_text: maritime
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: specialist.shipping_aviation
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i030
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/clyde-co-promotes-23-partners-across-its-global-network/403513
+    published_at: 2022-04-25 00:00:00+00:00
+    headline: Clyde co promotes 23 partners across its global network
+    text: Clyde & Co has announced the promotion of 23 equity partners across its global network, effective
+      1 May 2022.
+    expect:
+      is_movement: false
+      moves: []
+      not_movement_reason: Aggregate count with no individual named. Nothing is extractable.
+    note: Aggregate count with no individual named. Nothing is extractable.
+  - id: gold-i031
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/practice-areas/tax/clayton-utz-adds-rimma-miller-as-a-partner-experienced-in-tax-controversy/570450
+    published_at: 2026-04-01 00:00:00+00:00
+    headline: Clayton utz adds rimma miller as a partner experienced in tax controversy
+    text: Clayton Utz has announced the appointment of Rimma Miller, most recently a partner in MinterEllison's
+      tax controversy team, as a partner in Sydney.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Rimma Miller
+        from_firm: MinterEllison
+        to_firm: Clayton Utz
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: AU-NSW
+        practice_text: tax controversy
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: tax
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i032
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/senior-us-capital-markets-ma-associate-beijing-shanghai-hong-kong-4-6-pqe/
+    published_at: 2021-04-08 03:05:18+00:00
+    headline: Senior US Capital Markets / M&A Associate Beijing / Shanghai / Hong Kong 4-6 PQE
+    text: An international law firm is actively looking for a senior-level US corporate associate in its
+      China or Hong Kong office.
+    expect:
+      is_movement: false
+      moves: []
+      not_movement_reason: Recruitment advertisement. Correctly yields nothing.
+    note: Recruitment advertisement. Correctly yields nothing.
+  - id: gold-i033
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/han-kun-law-offices-zhang-dong-china/
+    published_at: 2025-10-14 04:12:24+00:00
+    headline: Han Kun recruits dispute resolution specialist in Shenzhen
+    text: Han Kun Law Offices has hired Zhang Dong at its Shenzhen office to strengthen the dispute resolution
+      practice.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Zhang Dong
+        from_firm: null
+        to_firm: Han Kun Law Offices
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: CN
+        practice_text: dispute resolution
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: disputes
+        secondary_practice_groups: []
+        sectors: []
+    note: A plain hire sentence that no body template matches.
+  - id: gold-i034
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/practice-areas/workplace-relations-and-health-and-safety/dentons-hires-employment-and-safety-partner-jackie-hamilton-two-special-counsel/507892
+    published_at: 2024-10-01 00:00:00+00:00
+    headline: Dentons hires employment and safety partner jackie hamilton two special counsel
+    text: Dentons has announced the addition of Jackie Hamilton, partner, to its employment and safety team
+      in Brisbane. She previously worked at Holding Redlich.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Jackie Hamilton
+        from_firm: Holding Redlich
+        to_firm: Dentons
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: AU-QLD
+        practice_text: employment and safety
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: employment.employment_and_labour
+        secondary_practice_groups: []
+        sectors: []
+    note: Two special counsel in the same article are correctly out of scope.
+  - id: gold-i035
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/practice-areas/corporate-and-ma/burchco-names-matthew-gasparini-as-associate-director-dispute-resolution-head/542416
+    published_at: 2025-07-14 00:00:00+00:00
+    headline: Burchco names matthew gasparini as associate director dispute resolution head
+    text: Burch&Co has announced the promotions of Matthew Gasparini to associate director and Sean Carr
+      to senior associate.
+    expect:
+      is_movement: false
+      moves: []
+      not_movement_reason: Associate director and senior associate are both below partner.
+    note: Associate director and senior associate are both below partner.
+  - id: gold-i036
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/magic-circle-experts-join-mofo-in-hong-kong/
+    published_at: 2023-08-04 04:47:35+00:00
+    headline: Magic Circle experts join MoFo in Hong Kong
+    text: Sun Chuan joined from Freshfields Bruckhaus Deringer and started work at Morrison & Foerster as
+      a partner in its technology transactions group.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Sun Chuan
+        from_firm: Freshfields
+        to_firm: Morrison & Foerster
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: HK
+        practice_text: technology transactions
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: corporate
+        secondary_practice_groups: []
+        sectors: []
+    note: A second partner in the same article is not named in the cached body.
+  - id: gold-i037
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/dla-piper-appoints-new-london-based-senior-partner/398250
+    published_at: 2022-03-11 00:00:00+00:00
+    headline: Dla piper appoints new london based senior partner
+    text: DLA Piper has appointed London-based corporate lawyer Jon Hayes to the role of senior partner,
+      effective 1 May.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Jon Hayes
+        from_firm: DLA Piper
+        to_firm: DLA Piper
+        title_from: null
+        title_to: senior partner
+        partner_tier: undisclosed
+        office_jurisdiction: GB
+        practice_text: null
+        sector_text: null
+        move_type: promotion
+        team_size: null
+        primary_practice_group: corporate
+        secondary_practice_groups: []
+        sectors: []
+  - id: gold-i038
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/practice-areas/corporate-and-ma/hunt-hunt-victoria-launches-malaysia-practice-adds-new-principal/253061
+    published_at: 2021-04-22 00:00:00+00:00
+    headline: Hunt hunt victoria launches malaysia practice adds new principal
+    text: Hunt & Hunt Victoria has launched a Malaysia practice to be headed up by a new special counsel.
+    expect:
+      is_movement: false
+      moves: []
+      not_movement_reason: Headline says principal, body says special counsel. Ambiguous, so abstaining
+        is right.
+    note: Headline says principal, body says special counsel. Ambiguous, so abstaining is right.
+  - id: gold-i039
+    provenance: live_feed
+    source_slug: asia-business-law-journal-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://law.asia/junhe-beijing-zhao-zhen/
+    published_at: 2024-05-29 05:55:29+00:00
+    headline: JunHe taps expertise of disputes partner in Beijing
+    text: JunHe recruits litigation and arbitration specialist Zhao Zhen to its Beijing team to increase
+      its competitiveness in dispute resolution.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Zhao Zhen
+        from_firm: null
+        to_firm: JunHe
+        title_from: null
+        title_to: null
+        partner_tier: undisclosed
+        office_jurisdiction: CN
+        practice_text: litigation and arbitration
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: disputes
+        secondary_practice_groups: []
+        sectors: []
+    note: A plain hire sentence that no body template matches.
+  - id: gold-i040
+    provenance: live_feed
+    source_slug: australasian-lawyer-archive
+    reliability_tier: 2
+    access_level: full_public
+    url: https://www.thelawyermag.com/au/news/general/thomson-geer-lures-clayton-utz-lawyer-as-new-tax-partner/464699
+    published_at: 2023-10-27 00:00:00+00:00
+    headline: Thomson geer lures clayton utz lawyer as new tax partner
+    text: Thomson Geer has appointed Clayton Utz lawyer Cameron Forbes as a partner in the firm's tax practice.
+    expect:
+      is_movement: true
+      moves:
+      - person_name: Cameron Forbes
+        from_firm: Clayton Utz
+        to_firm: Thomson Geer
+        title_from: null
+        title_to: partner
+        partner_tier: undisclosed
+        office_jurisdiction: AU
+        practice_text: tax
+        sector_text: null
+        move_type: lateral
+        team_size: null
+        primary_practice_group: tax
+        secondary_practice_groups: []
+        sectors: []

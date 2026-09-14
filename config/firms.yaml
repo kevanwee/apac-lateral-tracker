@@ -808,3 +808,7 @@ firms:
     type: regional
     hq: KR
     aliases: [Yulchon LLC]
+  - name: Cooper Grace Ward
+    type: local
+    hq: AU
+    aliases: [CGW, Cooper Grace Ward Lawyers]

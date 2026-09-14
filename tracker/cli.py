@@ -560,6 +560,27 @@ def extract_cmd(limit: int | None, extractor: str) -> None:
         )
 
 
+@cli.command("evaluate")
+@click.option("--bar", type=float, default=None,
+              help="Precision floor to fail under. Defaults to the brief's 0.98.")
+def evaluate_cmd(bar: float | None) -> None:
+    """Measure extraction against the gold set (Phase 7).
+
+    Needs no database, no network and no API key: the fixture carries the
+    text, so the number is reproducible by anyone with the repo.
+    """
+    from tracker import evaluate as evaluation
+
+    report = evaluation.run()
+    click.echo(evaluation.render(report))
+
+    floor = evaluation.PRECISION_BAR if bar is None else bar
+    if report.precision < floor:
+        raise click.ClickException(
+            f"precision {report.precision:.3f} is below the {floor:.2f} bar"
+        )
+
+
 @cli.command("dedupe")
 @click.option("--apply", "do_apply", is_flag=True,
               help="Actually merge. Without this, only report what would happen.")
