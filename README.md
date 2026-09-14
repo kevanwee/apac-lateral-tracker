@@ -20,21 +20,46 @@ which is the intended trade.
 |-------|-------|-------|
 | 0 | Compliance constraints | Done — [docs/constraints.md](docs/constraints.md) |
 | 1 | Data model and migrations | Done — 12 plain-SQL migrations, invariants enforced in-database |
-| 2 | Ingestion, extraction, gold set | Done at $0 — 14 active sources, 24,730 archive items back to 2019; gold set 29/100 (strict xfail) |
+| 2 | Ingestion, extraction, gold set | Done at $0 — 14 active sources, 24,730 archive items back to 2019, 206 firms; gold set 69 records / 63 live moves, target 100 (strict xfail) |
 | 3 | Taxonomy and classification | Done — taxonomy 1.1.0, 46 practice nodes, 34 sectors, 154 mappings; evidence-ranked classification |
-| 4 | Deduplication | Not started — the schema supports it; **trend analysis across sources waits on it** |
+| 4 | Deduplication | Done — blocking, pair scoring, merge with field conflicts kept, team-move detection; `tracker dedupe` |
 | 5 | Trend analytics | Analysis views done (`analysis_moves`, `source_period_coverage`, `practice_group_trend`); no dashboard |
 | 6 | Scheduling | Manual `catch-up` workflow; quarterly reminder issue, no unattended spend |
-| 7 | Evaluation | Calibration guards and blast-radius audits; no gold-set P/R until the set is filled |
+| 7 | Evaluation | Done — `tracker evaluate` reports precision, recall and per-field agreement against item-sampled ground truth |
 
 ### Data quality, honestly
 
-The first extraction over the archive produced 285 records. A manual audit
-found roughly a fifth wrong — a single missing regex group let two-letter firm
-aliases match inside ordinary words (`EY` inside *Cooley*), and the direction
-of "Former X head rejoins Y" was reversed. Both are fixed with regression
-tests, and the stored records are being re-extracted under `rules/2.1.0`.
-Until that run finishes, treat any number from `moves` as provisional.
+The corpus under `rules/2.3.0` is **439 canonical records** from 1,639
+gate-passed items: 86% classified, 66% with a jurisdiction, 28% with an
+origin firm, 2 team moves, zero invariant violations.
+
+**Precision is at the brief's bar. Recall is not, and is the open problem.**
+
+| Measure | `rules/2.1.0` | `rules/2.3.0` |
+|---|---|---|
+| Person | 0.850 [0.709, 0.929] | **0.980** [0.895, 0.996] |
+| Destination firm | 0.975 | **0.980** |
+| Record is a partner-level move | 0.775 | **0.940** |
+| Recall | not measured | **0.304** |
+
+Precision is a hand audit of 50 records drawn at random from the stored
+corpus, each checked against the article text. Recall is separate and is
+measured from 40 gate-passed *items* sampled uniformly — including the ones
+extraction found nothing in — because a sample drawn from the extractor's own
+output cannot see what it missed. `tracker evaluate` reproduces both against
+`tests/fixtures/gold_set.yaml` with no database and no network.
+
+Recall of 0.304 means roughly one partner move in three is found. Measured
+across the 1,278 rejected items, 45% fail because the headline names a firm
+the gazetteer does not hold, so the body is never read, and 44% because no
+body template matches a plain sentence such as "Han Kun Law Offices has hired
+Zhang Dong at its Shenzhen office". The second is the largest lever left.
+
+Five defect classes were found by audit and each is fixed with a regression
+test on the real text: article-cache entries replaying uncut related-article
+rails, `counsel` and `director` passing as partner-level, a body naming
+someone the outlet's own URL slug contradicts, mentions that refer back to an
+earlier hire, and organisation names reaching the person slot.
 `docs/methodology.md` §8 lists what a published number must state.
 
 ## Quick start

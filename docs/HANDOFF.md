@@ -11,57 +11,61 @@ evaluation). They have said: *"I do not wish to keep rerunning the extraction
 on the base corpus"* — get each fix right, then run once. Report numbers and
 decisions to overrule at each checkpoint, not summaries.
 
-## 1. State on 2026-09-14
+## 1. State on 2026-09-14 (end of the second session)
 
 Repo `github.com/kevanwee/apac-lateral-tracker`, private, `main`, CI green at
-317 tests + 2 strict xfails. Database is Neon Postgres (free tier,
-ap-southeast-1); `DATABASE_URL` (pooled) and `DATABASE_URL_DIRECT` in `.env`,
-never in chat. Migrations applied through **0012**. Taxonomy **1.1.0** is
-current (1.0.0 kept, nothing assigned to it any more). 174 firms / 171
-aliases seeded. Everything runs at **$0** — rule extractor, no API key.
+**530 tests + 4 strict xfails**. Database is Neon Postgres (free tier,
+ap-southeast-1); `DATABASE_URL` in `.env`, never in chat. Migrations applied
+through **0012**. Taxonomy **1.1.0** is current. **206 firms** seeded.
+Everything runs at **$0** — rule extractor, no API key.
 
-### A re-extraction is running — check it before anything else
+### Precision is at the bar; recall is the open problem
 
-`rules/2.0.0` produced 285 records of which 21% carried a wrong firm (see §3
-of this doc). All 285 were discarded with `tracker reextract --apply` and
-every gate-passed item was requeued. `tracker extract --extractor rules` was
-then started in the background, logging to `reextract_2_1_0.log` in the repo
-root. It processes ~1,640 items at the 10 s/origin floor with 858 article
-bodies already in `article_cache.json`; expect 2–4 hours total.
+The corpus is **439 canonical records** under `rules/2.3.0` from 1,639
+gate-passed items, after four corrective re-extractions and one dedupe pass.
 
-```bash
-tail -3 reextract_2_1_0.log                       # "exit=0" on the last line when done
-tracker status                                    # last run row: stage=extract
-python - <<'EOF'
-from tracker.db import connect
-with connect() as c:
-    print(c.execute("select processing_state, count(*) from raw_items where gate_passed group by 1").fetchall())
-    print(c.execute("select count(*) total, count(*) filter (where not practice_unclassified) classified, "
-                    "count(*) filter (where office_jurisdiction is not null) with_j, "
-                    "count(*) filter (where from_firm_id is not null) with_origin from analysis_moves").fetchone())
-EOF
-```
+| Measure | 2.1.0 | **2.3.0** | How it was measured |
+|---|---|---|---|
+| Person precision | 0.850 | **0.980** | 50 stored records, hand-audited against the article text |
+| Destination firm | 0.975 | **0.980** | same sample |
+| Record is partner-level | 0.775 | **0.940** | same sample |
+| **Recall** | — | **0.304** | 40 gate-passed *items* sampled uniformly, hand-adjudicated |
 
-At handoff time: 79 items extracted → 91 moves, 87 classified, 80 with
-jurisdiction, 28 with origin, 170 items rejected (no named move), 1,390
-pending. If the process died (no `exit=` line, no python process), just run
-`tracker extract --extractor rules` again — it is idempotent per (item,
-person) and resumes from the cache.
+Reproduce both with `tracker evaluate` (no database, no network): it reports
+precision 1.000 and recall 0.304 against `tests/fixtures/gold_set.yaml`.
 
-**When it finishes, the very next task is a precision audit** (§4, step 1).
-Do not build on the records before that.
+| | |
+|---|---|
+| moves | 439 canonical (447 rows; 8 superseded by 4 merges) |
+| classified / jurisdiction / origin | 86% / 66% / 28% |
+| team moves | 2 |
+| review queue | 61 `unclassified_practice`, 1 `dedupe_ambiguous` |
+| invariant violations | 0 |
 
-### Two hygiene items left by this session
+**Recall is where the work is.** Across the 1,278 rejected items: 45% fail
+because the headline names a firm the gazetteer does not hold, so the body is
+never read; 44% because no body template matches a plain hire sentence. See
+§4 Step 3 — it is now the largest remaining lever by a wide margin.
 
-- **221 orphaned `people` rows.** `reextract` deleted moves but not the
-  people they pointed at. The command now deletes orphans on `--apply`
-  (commit after this handoff), but the 221 from the run already done are still
-  there. Delete them once the extraction has finished (a person a new move
-  re-creates is fine; the row is recreated by `_resolve_person`):
-  `DELETE FROM people p WHERE NOT EXISTS (SELECT 1 FROM moves m WHERE m.person_id = p.id)`.
-- **`article_cache.json`** (858 bodies) should be purged with
-  `tracker cache purge` when this campaign's extraction and audit are done.
-  Retention rule is in `docs/constraints.md` §2.
+### Five defect classes found and fixed, each with a regression test
+
+1. **The article cache froze parsing.** It stores the *parsed* body, so a
+   cache hit skipped `body_of` and replayed weeks-old behaviour: 129 of 1,586
+   bodies still carried a related-article rail, and 11 records named a partner
+   who appears nowhere else. `trim_tail` is now re-applied on cache read.
+2. **`counsel` and `director` passed as partner-level** — 17 records.
+3. **A body naming someone the outlet's own URL slug contradicts** — 22.
+4. **Mentions referring back to an earlier hire** — 13.
+5. **Organisation names in the person slot** — 3.
+
+### Hygiene
+
+- **`people` orphans: 0.** `reextract --apply` deletes them itself.
+- **`article_cache.json`** (1,586 bodies) is kept indefinitely by decision;
+  `trim_tail` on read means stale entries are no longer a hazard. Purge with
+  `tracker cache purge`.
+- **Surname keys need no backfill.** The re-extraction recreated every person
+  row under the new name rules; 0 stale keys.
 
 ## 2. Sources: what is reachable, what is in, what is not
 
@@ -110,7 +114,13 @@ pattern is recognised if it recurs in a new form.
 
 ## 4. The path to the complete record, in order
 
-### Step 1 — Precision audit of `rules/2.1.0` (blocking; do first)
+### Step 1 — Precision audit — **DONE**
+
+Person 0.980, destination firm 0.980 on a 50-record hand audit of
+`rules/2.3.0`. Five defect classes found and fixed; see §1. The original
+instructions are kept below because the method is the one to repeat.
+
+#### Method (repeat this after any extraction change)
 
 Sample 50 records at random from `analysis_moves`, print person, from, to,
 title, jurisdiction, practice, evidence kind, headline and URL, and verify
@@ -137,11 +147,30 @@ short, `tracker backfill --only asia-business-law-journal-archive --since
 seven Law.com titles, the ABLJ live feed and Legal Business, which have never
 been fetched. Then `tracker extract`.
 
-### Step 3 — Recover the ABLJ headlines that name nobody
+### Step 3 — Body template coverage — **THE LARGEST REMAINING LEVER**
 
-Most of ABLJ's 888 gate-passed items were "rejected: no named move" (170 so
-far). Many are real moves whose body sentence shape is not in
-`body_rules.py`. Take 100 rejected ABLJ items, read the cached bodies, and
+Now measured rather than estimated: 557 of 1,278 rejected items (44%) have a
+resolved destination firm and a cached body, and fail only because no body
+template matches the sentence. Real examples, each a plain hire:
+
+- "Han Kun Law Offices has hired Zhang Dong at its Shenzhen office"
+- "Thomson Geer has appointed Clayton Utz lawyer Cameron Forbes as a partner"
+- "Ian Bennett, Catherine Morton, Jehan Mata and Andrew Ferguson recently
+  joined the partnership" (four in one sentence)
+
+A further 576 (45%) fail earlier still, because the headline names a firm the
+gazetteer does not hold and `_from_body` returns before reading the body.
+32 firms were added this session (+38 records); the tail is boutiques.
+
+Add templates only for shapes that are unambiguous, each with a test on the
+real sentence, then re-extract once. `tracker evaluate` measures the effect
+on recall directly — that is what it is for.
+
+#### Original note
+
+1,232 of the 1,639 gate-passed items were rejected as "no rule template
+matched the headline" — the extractor found no named person. Many are real
+moves whose body sentence shape is not in `body_rules.py`. Take 100 rejected ABLJ items, read the cached bodies, and
 tally the sentence shapes that name a person. Add templates only for shapes
 that are unambiguous, each with a test on the real sentence. Then
 `tracker reextract --source asia-business-law-journal-archive --apply`.
@@ -165,7 +194,16 @@ Each is a `sources.yaml` entry (`adapter: feed` where WordPress exposes
 Check robots.txt and terms per firm before enabling; record the date. This is
 also how the gold set reaches 100 (Step 8).
 
-### Step 6 — Phase 4, deduplication
+### Step 6 — Phase 4, deduplication — **DONE**
+
+Built and applied: `tracker/names.py` (surname-first ordering),
+`tracker/dedupe.py` (pair scoring, given name as a hard gate),
+`tracker/pipeline/dedupe.py` (blocking, merge, review routing, team moves),
+`tracker dedupe`. On the corpus: 4 merges, 2 team moves, 1 ambiguous pair
+queued. Two partners sharing a surname at one firm in one window stay two
+records — that guard is exercised by live data, not only by tests.
+
+#### Design notes (kept)
 
 Schema is ready (`superseded_by_move_id`, `field_conflicts`, `merged_at`,
 `canonical_moves`, `moves_blocking_idx`, `review_reason = 'dedupe_ambiguous'`).
@@ -194,7 +232,18 @@ matrix from `canonical_moves`. Depth-market filter is
 anticipates Next.js; a static SQL-to-JSON export plus a small page is enough
 and costs nothing to host.
 
-### Step 8 — Phase 7, evaluation
+### Step 8 — Phase 7, evaluation — **DONE**
+
+`tracker evaluate` reports precision, recall and per-field agreement with no
+database and no network, and fails under the 0.98 bar. The gold set gained 40
+**item-sampled** records (69 total, 18 reporting no move).
+
+The sampling change matters and should not be undone: a gold set built from
+records the extractor produced can only confirm what it already got right, so
+recall is unmeasurable and precision is inflated by selection. The set still
+falls short of 100 live moves and the strict xfail still marks that.
+
+#### Original note
 
 Gold set is 29/100 live records (`tests/fixtures/gold_set.yaml`, strict
 xfail on size). Fill it from Step 5's newsroom items and from verified
