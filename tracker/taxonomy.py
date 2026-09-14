@@ -58,6 +58,19 @@ class Assignment:
 
     @property
     def assigned_by(self) -> str:
+        """Who made this classification.
+
+        Inferred from `rule_key` rather than stored, so the two can never
+        disagree — and the database enforces the same link (migration 0005:
+        `assigned_by <> 'rule' OR rule_key IS NOT NULL`).
+
+        Every path through `Taxonomy.classify` sets a rule_key, including the
+        ones that decide *not* to classify, so today this always answers
+        "rule". It reported "model" on those paths for a while, which made the
+        classification breakdown claim a model had run on 154 of 228 records
+        when no model is called anywhere in the rule pipeline and the spend was
+        $0. A deliberate abstention is still a decision the rules made.
+        """
         return "rule" if self.rule_key else "model"
 
 
@@ -184,7 +197,11 @@ class Taxonomy:
         unclassified records stay in the denominator of every chart.
         """
         if not practice_text or self._pattern is None:
-            return Assignment(primary=UNCLASSIFIED, confidence=0.0)
+            # No practice was stated. That is a fact about the article, not a
+            # classifier failure, so it is recorded as a rule decision.
+            return Assignment(
+                primary=UNCLASSIFIED, rule_key="no_practice_text", confidence=0.0
+            )
 
         normalised = normalise(practice_text)
 
@@ -211,7 +228,12 @@ class Taxonomy:
                     confidence=0.95 if exact else 0.8,
                 )
 
-        return Assignment(primary=UNCLASSIFIED, confidence=0.0)
+        # Practice text was stated but nothing in the taxonomy matched it.
+        # Worth distinguishing from "none stated": a run of these means the
+        # mapping file needs a term, which the other case never does.
+        return Assignment(
+            primary=UNCLASSIFIED, rule_key="no_mapping_matched", confidence=0.0
+        )
 
     # -- lookups -----------------------------------------------------------
 

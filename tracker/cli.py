@@ -560,6 +560,79 @@ def extract_cmd(limit: int | None, extractor: str) -> None:
         )
 
 
+@cli.command("reextract")
+@click.option("--source", "slug", default=None,
+              help="Limit to one source slug. Omit to cover every source.")
+@click.option("--apply", "do_apply", is_flag=True,
+              help="Actually delete. Without this, only report what would go.")
+@click.option("--reason", required=True,
+              help="Why these records are being discarded. Recorded in the run.")
+def reextract_cmd(slug: str | None, do_apply: bool, reason: str) -> None:
+    """Discard extracted moves and mark their items for extraction again.
+
+    Needed when a defect in the extractor means the stored records are wrong
+    rather than merely incomplete — a wrong record cannot be repaired in place,
+    because every field on it was derived from the same bad parse.
+
+    Deliberately not part of `extract`. Re-extraction throws away human-visible
+    output and re-fetches article bodies over the network, so it is an explicit
+    decision with a stated reason, and it reports before it deletes.
+    """
+    where, params = "", []
+    if slug:
+        where = "AND s.slug = %s"
+        params = [slug]
+
+    with db.connect(direct=True) as conn:
+        affected = conn.execute(
+            f"""
+            SELECT s.slug, count(DISTINCT m.id) AS moves,
+                   count(DISTINCT ri.id) AS items
+            FROM raw_items ri
+            JOIN sources s ON s.id = ri.source_id
+            LEFT JOIN move_sources ms ON ms.raw_item_id = ri.id
+            LEFT JOIN moves m ON m.id = ms.move_id
+            WHERE ri.processing_state <> 'new' {where}
+            GROUP BY s.slug ORDER BY moves DESC
+            """,
+            params,
+        ).fetchall()
+
+        total_moves = sum(r["moves"] for r in affected)
+        total_items = sum(r["items"] for r in affected)
+        for r in affected:
+            click.echo(f"  {r['slug']:38} {r['moves']:5} moves  {r['items']:6} items")
+        click.echo(f"  {'TOTAL':38} {total_moves:5} moves  {total_items:6} items")
+
+        if not do_apply:
+            click.echo("")
+            click.echo("dry run. Re-run with --apply to discard these records.")
+            return
+
+        deleted = conn.execute(
+            f"""
+            DELETE FROM moves m USING move_sources ms, raw_items ri, sources s
+            WHERE ms.move_id = m.id AND ri.id = ms.raw_item_id
+              AND s.id = ri.source_id {where}
+            """,
+            params,
+        ).rowcount
+        reset = conn.execute(
+            f"""
+            UPDATE raw_items ri SET processing_state = 'new', reject_reason = NULL,
+                   error_message = NULL, processed_at = NULL, body_read_at = NULL
+            FROM sources s
+            WHERE s.id = ri.source_id AND ri.processing_state <> 'new' {where}
+            """,
+            params,
+        ).rowcount
+        conn.commit()
+
+    click.echo("")
+    click.echo(f"discarded {deleted} move(s); {reset} item(s) marked for extraction again")
+    click.echo(f"reason: {reason}")
+
+
 @cli.command("status")
 def status_cmd() -> None:
     """Recent runs, queue depth and any source that has gone quiet."""

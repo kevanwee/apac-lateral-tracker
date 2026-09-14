@@ -263,12 +263,22 @@ def find(body: str, headline: str, gazetteer: FirmGazetteer) -> list[BodyHit]:
 # Taking the longest firm mention as the destination gets the second of those
 # backwards, so direction has to come from the words around each mention.
 
-# Immediately before an origin firm.
-_ORIGIN_CUE = re.compile(r"\b(?:from|leaves?|leaving|exits?|quits?)\s+(?:rival\s+|the\s+)?$")
-# Immediately before a destination firm.
+# Immediately before an origin firm. "former"/"ex" are the strongest origin
+# cues in APAC trade press and were missing: "Former Norton Rose maritime
+# practice head rejoins WFW" has no "from" in it at all, so both firms fell
+# through to the leads-with-the-hirer fallback and the move was recorded
+# backwards.
+_ORIGIN_CUE = re.compile(
+    r"\b(?:from|leaves?|leaving|exits?|quits?|former|formerly\s+(?:of|at)|"
+    r"ex)[\s-]+(?:rival\s+|the\s+)?$"
+)
+# Immediately before a destination firm. `\bjoins` never matched "rejoins" —
+# the boundary fails mid-word — which is precisely the verb used when someone
+# returns to a firm they left.
 _DEST_CUE = re.compile(
-    r"\b(?:to|for|joins?|joining|jumps?\s+to|moves?\s+to|heads?\s+to|"
-    r"defects?\s+to|departs?\s+for)\s+(?:rival\s+|the\s+)?$"
+    r"\b(?:to|for|(?:re)?joins?|(?:re)?joining|jumps?\s+to|moves?\s+to|"
+    r"heads?\s+to|defects?\s+to|departs?\s+for|lands?\s+at)"
+    r"\s+(?:rival\s+|the\s+)?$"
 )
 
 

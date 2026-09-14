@@ -201,6 +201,80 @@ def test_ambiguous_headlines_produce_nothing(headline, reason):
 # ---------------------------------------------------------------------------
 
 
+def _accepts(raw: str) -> bool:
+    """The person slot exactly as the extractor composes it."""
+    from tracker.extract.rules import (
+        _dedupe_repeated_name,
+        _looks_like_a_person,
+        _strip_honorific,
+        strip_leading_noise,
+    )
+
+    candidate = _dedupe_repeated_name(
+        strip_leading_noise(_strip_honorific(raw))
+    )
+    return _looks_like_a_person(candidate, FirmGazetteer.load())
+
+
+NOT_PEOPLE = [
+    # Site furniture read out of an article body, observed in the ABLJ backfill.
+    ("Most Popular Malaysia", "a section heading, not a name"),
+    ("Deal Highlights Firms", "a section heading, not a name"),
+    # An organisation that the person slot swallowed.
+    ("HP India", "a company, not a person"),
+    ("Kennedys Hong Kong", "a firm and its office"),
+    ("KPMG Australia", "a firm and its country"),
+    ("OpenAI secondee", "a role, not a name"),
+]
+
+
+@pytest.mark.parametrize(
+    ("candidate", "reason"), NOT_PEOPLE, ids=[c for c, _ in NOT_PEOPLE]
+)
+def test_things_that_are_not_people_are_rejected(candidate, reason):
+    assert not _accepts(candidate), reason
+
+
+RECOVERABLE = [
+    # A real person with a stray token in front. Trimming beats rejecting:
+    # these are correct records that the first version of the nav filter lost.
+    ("Share David Nisbet", "David Nisbet"),
+    ("Share Emma Liu", "Emma Liu"),
+    ("Brisbane Helen Clarke", "Helen Clarke"),
+    ("Hiral Motta Hiral Motta", "Hiral Motta"),
+    ("Dr Clarisse Girot", "Clarisse Girot"),
+    ("Nick Baker", "Nick Baker"),
+]
+
+
+@pytest.mark.parametrize(("raw", "expected"), RECOVERABLE, ids=[r for r, _ in RECOVERABLE])
+def test_a_name_behind_noise_is_recovered_not_discarded(raw, expected):
+    from tracker.extract.rules import (
+        _dedupe_repeated_name,
+        _strip_honorific,
+        strip_leading_noise,
+    )
+
+    cleaned = _dedupe_repeated_name(strip_leading_noise(_strip_honorific(raw)))
+    assert cleaned == expected
+    assert _accepts(raw)
+
+
+def test_a_genuine_four_part_name_is_not_halved():
+    from tracker.extract.rules import _dedupe_repeated_name
+
+    assert _dedupe_repeated_name("Maria Elena Santos Cruz") == "Maria Elena Santos Cruz"
+
+
+@pytest.mark.xfail(
+    reason="a surname that is also a country is indistinguishable from an "
+           "organisation without a given-name gazetteer (Phase 4)",
+    strict=True,
+)
+def test_a_surname_that_is_a_country_is_a_known_false_negative():
+    assert _accepts("matt spain")
+
+
 def test_an_honorific_is_not_part_of_the_name():
     move = extract(
         "Dentons appoints Dr Clarisse Girot as global head of data privacy"

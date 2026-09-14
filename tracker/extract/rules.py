@@ -114,6 +114,22 @@ ROLE_WORDS = {
     "first", "executive", "gc", "clo", "ceo", "cfo", "coo", "cto", "gm",
     "md", "kc", "qc", "sc", "llp", "team", "dealmaker", "litigator",
     "veteran", "specialist", "expert", "trio", "duo", "pair",
+    "secondee", "secondment", "trainee", "intern", "consultant",
+}
+
+# Site furniture. When an article body is read, the page's own section
+# headings sit in the same text as the prose, and a heading like "Most Popular"
+# or "Deal Highlights" is three capitalised words in a row — indistinguishable
+# from a name to a positional template. Every entry here was observed becoming
+# a person in the ABLJ backfill.
+NAVIGATION_WORDS = {
+    "most", "popular", "latest", "trending", "featured", "sponsored",
+    "deal", "deals", "highlights", "related", "recommended", "newsletter",
+    "subscribe", "subscription", "login", "register", "menu", "search",
+    "share", "print", "comments", "advertisement", "advertise",
+    "rankings", "ranking", "awards", "briefing", "briefings", "bulletin",
+    "weekly", "daily", "monthly", "edition", "archive", "archives",
+    "copyright", "privacy", "terms", "contact", "about", "home",
 }
 
 # Regulator, agency and jurisdiction words. Trade press writes "Ex-SafeWork NSW
@@ -173,6 +189,7 @@ NOT_A_PERSON = (
     | DESCRIPTOR_WORDS
     | PRACTICE_WORDS
     | PUBLIC_BODY_WORDS
+    | NAVIGATION_WORDS
 )
 
 # A captured title must be partner-level or this is not a movement we track.
@@ -251,11 +268,52 @@ def _strip_honorific(name: str) -> str:
     return HONORIFIC.sub("", name).strip()
 
 
+def _dedupe_repeated_name(candidate: str) -> str:
+    """'Hiral Motta Hiral Motta' -> 'Hiral Motta'.
+
+    A name repeated back to back is a page that printed it twice (a byline
+    above a photo caption, most often) rather than a four-part name, and the
+    person slot swallowed both copies.
+    """
+    words = candidate.split()
+    half = len(words) // 2
+    if len(words) >= 2 and len(words) % 2 == 0:
+        first, second = words[:half], words[half:]
+        if [w.lower() for w in first] == [w.lower() for w in second]:
+            return " ".join(first)
+    return candidate
+
+
+def strip_leading_noise(candidate: str) -> str:
+    """Drop site furniture and datelines that sit in front of a real name.
+
+    "Share David Nisbet" is a share button abutting a byline; "Brisbane Helen
+    Clarke" is a dateline. Both are real people with a stray token in front,
+    so trimming recovers the record where rejecting would lose it. Only leading
+    tokens are trimmed, and only while a plausible two-word name remains.
+    """
+    words = candidate.split()
+    while len(words) > 2:
+        head = words[0].lower().strip(".,'’-")
+        if head in NAVIGATION_WORDS or PLACES.find(words[0]):
+            words = words[1:]
+            continue
+        break
+    return " ".join(words)
+
+
 def _looks_like_a_person(candidate: str, gazetteer: FirmGazetteer | None = None) -> bool:
     """Conservative by design: when unsure, say no and lose the record."""
     words = [w for w in re.split(r"\s+", candidate.strip()) if w]
     if not (2 <= len(words) <= 4):
         return False
+
+    # A name slot that *begins* with a firm is a firm plus its office or its
+    # byline, not a person: "Kennedys Hong Kong", "Corrs Brisbane".
+    if gazetteer and len(words) > 2:
+        for end in range(len(words) - 1, 1, -1):
+            if gazetteer.resolve(" ".join(words[:end])):
+                return False
 
     lowered = {w.lower().strip(".,'’-") for w in words}
     if lowered & NOT_A_PERSON:
@@ -264,7 +322,18 @@ def _looks_like_a_person(candidate: str, gazetteer: FirmGazetteer | None = None)
         return False
     # A name slot that resolves to a firm means the template misread the
     # sentence, not that the firm is a person.
-    return not (gazetteer and gazetteer.resolve(candidate))
+    if gazetteer and gazetteer.resolve(candidate):
+        return False
+    # A place left inside a name slot means the template swallowed an
+    # organisation or a dateline: "HP India", "Kennedys Hong Kong".
+    #
+    # This is a deliberate, measured loss of recall, not a free win. Surnames
+    # that are also place names are real — "Matt Spain" is rejected here, and
+    # nothing in the text distinguishes him from "HP India" without a given-name
+    # gazetteer, which does not exist yet (see tracker/names.py, Phase 4).
+    # Erring towards rejection is the instruction this dataset is built on: a
+    # false movement record is worse than a missed one.
+    return not PLACES.find(candidate)
 
 
 @dataclass
@@ -347,9 +416,13 @@ class RuleExtractor:
         moves: list[ExtractedMove] = []
 
         for hit in body_rules.find(body, headline, self.gazetteer):
-            person = _strip_honorific(hit.person)
+            person = _dedupe_repeated_name(strip_leading_noise(_strip_honorific(hit.person)))
             if not _looks_like_a_person(person, self.gazetteer):
                 continue
+            # Dropping a repeated copy shortens the matched text, so the span
+            # has to shrink with it or it would cite more than the value.
+            person_start = hit.person_start
+            person_end = person_start + len(person)
             if hit.title and not PARTNER_LEVEL_TITLE.search(hit.title):
                 continue
 
@@ -363,10 +436,10 @@ class RuleExtractor:
             fields: dict[str, VerifiedField] = {
                 "person_name": VerifiedField(
                     name="person_name", value=person,
-                    span_start=offset + hit.person_start,
-                    span_end=offset + hit.person_end,
+                    span_start=offset + person_start,
+                    span_end=offset + person_end,
                     quality="exact",
-                    excerpt=_excerpt(body, hit.person_start, hit.person_end),
+                    excerpt=_excerpt(body, person_start, person_end),
                 ),
                 "to_firm": VerifiedField(
                     name="to_firm", value=to_firm,
@@ -380,10 +453,10 @@ class RuleExtractor:
             if from_firm:
                 fields["from_firm"] = VerifiedField(
                     name="from_firm", value=from_firm,
-                    span_start=offset + hit.person_start,
-                    span_end=offset + hit.person_end,
+                    span_start=offset + person_start,
+                    span_end=offset + person_end,
                     quality="recovered",
-                    excerpt=_excerpt(body, hit.person_start, hit.person_end),
+                    excerpt=_excerpt(body, person_start, person_end),
                 )
             practice = body_rules.practice_for(person, body)
             if practice:
@@ -398,17 +471,17 @@ class RuleExtractor:
             if hit.title:
                 fields["title_to"] = VerifiedField(
                     name="title_to", value=hit.title,
-                    span_start=offset + hit.person_start,
-                    span_end=offset + hit.person_end,
+                    span_start=offset + person_start,
+                    span_end=offset + person_end,
                     quality="recovered",
-                    excerpt=_excerpt(body, hit.person_start, hit.person_end),
+                    excerpt=_excerpt(body, person_start, person_end),
                 )
             fields["move_type"] = VerifiedField(
                 name="move_type", value=move_type,
-                span_start=offset + hit.person_start,
-                span_end=offset + hit.person_end,
+                span_start=offset + person_start,
+                span_end=offset + person_end,
                 quality="recovered",
-                excerpt=_excerpt(body, hit.person_start, hit.person_end),
+                excerpt=_excerpt(body, person_start, person_end),
             )
 
             present = {f for f in confidence.COMPLETENESS_WEIGHTS if f in fields}
@@ -449,7 +522,11 @@ class RuleExtractor:
     ) -> ExtractedMove | None:
         groups = match.groupdict()
 
-        person = _strip_honorific((person or groups.get("person") or "").strip())
+        person = _dedupe_repeated_name(
+            strip_leading_noise(
+                _strip_honorific((person or groups.get("person") or "").strip())
+            )
+        )
         if not _looks_like_a_person(person, self.gazetteer):
             log.debug("%s: %r is not a person, abstaining", rule_name, person)
             return None

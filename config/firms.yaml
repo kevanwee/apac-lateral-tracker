@@ -632,3 +632,36 @@ firms:
   - name: Maxwell Chambers
     type: chambers
     aliases: []
+
+  # --- Added from the ABLJ backfill audit -------------------------------
+  # Each of these appeared as the hiring firm in a real headline and was not
+  # recognised, so the destination either fell to another firm named in the
+  # text or the record was abstained on entirely.
+  - name: Cooley
+    type: us
+    hq: US
+    aliases: [Cooley LLP]
+  - name: Dorsey & Whitney
+    type: us
+    hq: US
+    aliases: [Dorsey, Dorsey and Whitney]
+  - name: Paul Hastings
+    type: us
+    hq: US
+    aliases: [Paul Hastings LLP]
+  - name: PDLegal
+    type: singapore
+    hq: SG
+    aliases: [PDLegal LLC, PD Legal]
+  - name: Chang Tsi & Partners
+    type: china
+    hq: CN
+    aliases: [Chang Tsi]
+  - name: Shihui Partners
+    type: china
+    hq: CN
+    aliases: [Shihui]
+  - name: Makarim & Taira S
+    type: other
+    hq: ID
+    aliases: [Makarim and Taira S, Makarim & Taira]

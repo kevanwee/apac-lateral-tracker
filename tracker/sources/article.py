@@ -52,11 +52,17 @@ _BYLINE = re.compile(
     r"By\s+[A-Z][\w'’-]+(?:\s+[A-Z][\w'’-]+){0,2}\s+\d{1,2}\s+\w{3,9}\s+\d{4}",
 )
 
-# Trailing site furniture that survives tag stripping.
+# Trailing site furniture that survives tag stripping. Everything below the
+# first of these is other articles' text, and the names in it belong to other
+# articles — the observed failure was one person appearing on five unrelated
+# headlines because the related-article rail was being read as article body.
 _TAIL_MARKERS = [
-    "related stories", "most read", "subscribe", "newsletter",
-    "share this article", "copyright", "terms of use", "privacy policy",
-    "follow us", "read next", "recommended",
+    "related stories", "related articles", "most read", "most popular",
+    "subscribe", "newsletter", "share this article", "copyright",
+    "terms of use", "privacy policy", "follow us", "read next",
+    "recommended", "deal highlights", "you might also like",
+    "more from", "latest news", "latest articles", "editor's picks",
+    "sign up", "all rights reserved", "leave a reply", "comments",
 ]
 
 # Enough for extraction; a whole page of boilerplate is not more evidence.

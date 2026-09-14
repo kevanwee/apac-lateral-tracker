@@ -96,7 +96,16 @@ class FirmGazetteer:
         surfaces = sorted(index, key=len, reverse=True)
         if surfaces:
             joined = "|".join(re.escape(s).replace(r"\ ", r"\s+") for s in surfaces)
-            self._pattern = re.compile(rf"(?<![\w]){joined}(?![\w])", re.IGNORECASE)
+            # The group around the alternation is load-bearing. Without it,
+            # `(?<!\w)a|b|c(?!\w)` parses as `((?<!\w)a) | (b) | (c(?!\w))` —
+            # alternation binds looser than concatenation, so every surface but
+            # the first and last matched with no boundary check at all. That let
+            # the two-letter aliases match inside ordinary words: "EY" inside
+            # "Cool-ey-", "A&G" ("a g") inside "Mide-a G-roup", "G+T" ("g t")
+            # inside "Chan-g T-si", "S&C" ("s c") inside "grow-s c-apital".
+            # Measured on the ABLJ backfill, this was the single largest source
+            # of wrong destination firms.
+            self._pattern = re.compile(rf"(?<!\w)(?:{joined})(?!\w)", re.IGNORECASE)
         return self
 
     def find(self, text: str) -> list[FirmMatch]:
