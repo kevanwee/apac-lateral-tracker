@@ -77,8 +77,13 @@ WITHOUT_ORIGIN = [
         rf"\s+(?:the\s+firm\s+)?as\s+(?P<title>{_TITLE})",
     ),
     (
+        # "Dorsey has hired Carlton Ng as of counsel" — the verb list needs the
+        # hiring verbs too, not only the appointing ones. Still precise: the
+        # name must be followed by "as/to <title>", so a verb alone cannot
+        # fire it.
         "appointed",
-        rf"(?:appointed|named|welcomed|promoted|elevated)"
+        rf"(?:appointed|named|welcomed|promoted|elevated|hired|recruited|added|"
+        rf"onboarded|brought\s+in|signed)"
         rf"\s+(?P<person>{_PERSON})\s+(?:as|to)\s+(?P<title>{_TITLE})",
     ),
     (
@@ -328,6 +333,23 @@ _BODY_PRACTICE = re.compile(
     r"(?:practice\s+group|practice|team|group|department|division)\b",
     re.IGNORECASE,
 )
+
+
+def sentences_about(person: str, body: str) -> str | None:
+    """The body sentences that mention this person, joined; None if none do.
+
+    Classification evidence for one person must not be read from a sentence
+    about another. Matching on the surname as well as the full name follows
+    trade press style, which introduces "Carlton Ng" and then writes "Ng".
+    """
+    parts = person.split()
+    surname = (parts[-1] if parts else person).lower()
+    needle = person.lower()
+    found = [
+        s for s in _SENTENCE_SPLIT.split(body)
+        if needle in s.lower() or re.search(rf"\b{re.escape(surname)}\b", s.lower())
+    ]
+    return " ".join(found) or None
 
 
 def practice_for(person: str, body: str) -> str | None:

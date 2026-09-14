@@ -56,6 +56,17 @@ of one extraction call and is discarded.
 `content_hash` is a SHA-256 of the fetched text used for change detection and
 idempotency. It is one-way and not a storage workaround.
 
+**The local article cache, stated plainly.** `article_cache.json` is a
+gitignored working file on the operator's machine holding the headline and the
+extracted body (capped at 4,000 characters) of pages fetched for one
+re-extraction campaign. It exists so that fixing an extractor defect does not
+mean re-fetching several hundred pages at the 10 s floor, which is load on the
+outlet for no new information. It is not the database, it is never committed,
+it is never served, and it is not a corpus: the retention rule is that it is
+deleted when the campaign it was built for is finished (`tracker cache
+purge`). If that rule is not acceptable for a source, set
+`html_access_reviewed_at` null on that source and its pages will not be read.
+
 **Provenance excerpts.** Extraction records a character span into the source text
 for every field (`move_field_evidence.span_start`, `span_end`) plus a short
 excerpt. The excerpt is capped at **25 words by a database check constraint**, not

@@ -3,101 +3,144 @@
 Partner-level lateral movement intelligence for APAC legal markets, with depth in
 Singapore, Hong Kong and Australia.
 
-The pipeline ingests legal trade press and firm newsroom feeds, extracts partner
-movements into structured records, deduplicates reports of the same move across
-outlets, classifies each move against a fixed versioned practice-group taxonomy,
-and surfaces trends through a dashboard. It runs unattended on a schedule with a
-human review queue for low-confidence output.
+The pipeline reads legal trade press and firm newsrooms, extracts partner
+movements into structured records with span-level provenance, classifies each
+against a fixed versioned practice-group taxonomy, and exposes an analysis
+surface built for share-of-market trend questions. It costs nothing to run: the
+extractor is rule-based, and no model is called anywhere in the default path.
 
 **Precision over coverage.** A false movement record is worse than a missed one,
-because the output is used for market analysis that people act on.
+because the output is used for market analysis that people act on. Every
+component abstains rather than guesses; the measured consequence is low recall,
+which is the intended trade.
 
 ## Status
 
 | Phase | Scope | State |
 |-------|-------|-------|
-| 0 | Compliance constraints | Done — see [docs/constraints.md](docs/constraints.md) |
-| 1 | Data model and migrations | Done — see [docs/data-model.md](docs/data-model.md) |
-| 2 | Ingestion, extraction, gold set | Done — 3 live sources, [gold set](tests/fixtures/gold_set.yaml) at 29/100 |
-| 3 | Taxonomy and classification | Not started |
-| 4 | Deduplication | Not started |
-| 5 | Trend analytics | Not started |
-| 6 | Scheduling and deployment | Partial — catch-up workflow done, dashboard pending |
-| 7 | Evaluation harness | Not started |
+| 0 | Compliance constraints | Done — [docs/constraints.md](docs/constraints.md) |
+| 1 | Data model and migrations | Done — 12 plain-SQL migrations, invariants enforced in-database |
+| 2 | Ingestion, extraction, gold set | Done at $0 — 14 active sources, 24,730 archive items back to 2019; gold set 29/100 (strict xfail) |
+| 3 | Taxonomy and classification | Done — taxonomy 1.1.0, 46 practice nodes, 34 sectors, 154 mappings; evidence-ranked classification |
+| 4 | Deduplication | Not started — the schema supports it; **trend analysis across sources waits on it** |
+| 5 | Trend analytics | Analysis views done (`analysis_moves`, `source_period_coverage`, `practice_group_trend`); no dashboard |
+| 6 | Scheduling | Manual `catch-up` workflow; quarterly reminder issue, no unattended spend |
+| 7 | Evaluation | Calibration guards and blast-radius audits; no gold-set P/R until the set is filled |
+
+### Data quality, honestly
+
+The first extraction over the archive produced 285 records. A manual audit
+found roughly a fifth wrong — a single missing regex group let two-letter firm
+aliases match inside ordinary words (`EY` inside *Cooley*), and the direction
+of "Former X head rejoins Y" was reversed. Both are fixed with regression
+tests, and the stored records are being re-extracted under `rules/2.1.0`.
+Until that run finishes, treat any number from `moves` as provisional.
+`docs/methodology.md` §8 lists what a published number must state.
 
 ## Quick start
 
 ```bash
 python -m pip install -e ".[dev]"
-cp .env.example .env        # fill in DATABASE_URL
-tracker db migrate          # apply migrations
-tracker sources sync        # load config/sources.yaml into the database
-tracker ingest              # fetch feeds, gate, store item metadata
-tracker extract             # pull movement records out of what passed the gate
-tracker status              # runs, review queue depth, quiet sources
+cp .env.example .env        # DATABASE_URL (pooled) and DATABASE_URL_DIRECT
+tracker doctor              # checks config, connectivity, migrations
+tracker db migrate
+tracker sources sync        # config/sources.yaml -> sources
+tracker firms --sync        # config/firms.yaml   -> firms, firm_aliases
+tracker taxonomy --load     # taxonomy/*.yaml     -> practice_groups, sectors
+tracker backfill --since 2019-01-01   # walk the archives; resumable
+tracker extract             # read gate-passed items; $0
+tracker status
+```
+
+Tests need a throwaway Postgres: the suite drops the `public` schema, and
+`tests/conftest.py` refuses to run it against anything but a local host.
+
+```bash
+docker run -d -e POSTGRES_PASSWORD=pg -p 5432:5432 postgres:16
+TRACKER_TEST_DATABASE_URL=postgresql://postgres:pg@localhost/postgres pytest -q
 ```
 
 ## Operating model
 
-This is a historical record refreshed on demand, not a daily feed. There is no
-daily cron: the pipeline loads years of archive once, then catches up when you
-run it.
+A historical record refreshed on demand, not a daily feed. Load the archives
+once, then `tracker catch-up` every few months. Every stage is idempotent:
+`raw_items.url` is unique, extraction is keyed per (item, person), and
+re-running costs time and nothing else.
+
+When an extractor defect is found, the fix is followed by a **re-extraction**,
+never an in-place repair: every field on a wrong record came from the same bad
+parse.
 
 ```bash
-tracker backfill --since 2020-01-01   # load history, resumable
-tracker catch-up                      # bring it up to date; run every few months
-tracker catch-up --no-extract         # ingest only, spend nothing
+tracker reextract --reason "boundary bug in firm gazetteer"          # dry run
+tracker reextract --reason "boundary bug in firm gazetteer" --apply  # discard and requeue
+tracker extract
 ```
 
-`catch-up` defaults to the window since the last successful run, with two weeks
-of deliberate overlap because outlets publish late. Every stage is idempotent,
-so running it twice costs time and nothing else. In GitHub Actions it is a
-manual **Actions → Catch up → Run workflow**; a quarterly schedule opens a
-reminder issue rather than spending the LLM budget unattended.
+## How extraction works
 
-### How far back the sources reach
+1. **Gate** (`tracker/gate.py`) — tuned for recall, the opposite of everything
+   downstream. Roughly one item in twenty passes. Outlets that slug entities
+   instead of headlines (Asia Business Law Journal) use a shape gate: known
+   firm + known place + room for a name.
+2. **Text** — the feed summary if the outlet gave one; the article page only
+   for a source whose terms a human has reviewed (`html_access_reviewed_at`).
+   The page's `<h1>` replaces a slug-derived headline. Bodies are cut at the
+   byline and at the outlet's trailing rails so other articles' names cannot
+   bleed in. Article text is never stored.
+3. **Rules** (`tracker/extract/rules.py`, `body_rules.py`) — fourteen headline
+   templates and a set of sentence-level body templates. A match *is* a
+   character span, so provenance is native. Firms resolve through the
+   gazetteer or the record is not made; direction comes from cue words, not
+   from which firm was mentioned first.
+4. **Person slot guards** — every word list in `rules.py` was added because a
+   real headline produced a wrong record (`Qic gc`, `even dozen`,
+   `Most Popular Malaysia`). Nothing speculative.
+5. **Classification** — stated practice clause first, then the headline, then
+   the sentences about the person, each at a lower weight; the evidence kind
+   is stored with the assignment. Bare, ambiguous words map to the parent
+   group.
+6. **Confidence and review** — a function of evidence quality (source tier,
+   access level, span quality), not of record richness. Unknown firms and
+   unplaceable practices go to the review queue, whose resolutions are meant
+   to grow the gazetteer and the mapping file.
 
-| Source | Route | Depth |
-|---|---|---|
-| Rajah & Tann Asia | WordPress feed pagination | April 2020, with summaries |
-| Australasian Lawyer | Year-partitioned sitemaps | 2019, headline only |
-| Global Legal Post | Posts sitemaps | ~20,000 URLs, dates unreliable |
-| ALB | Newsletter via IMAP | As far back as your subscription |
+## Sources
 
-Sitemap-derived headlines are rebuilt from URL slugs, so they are marked
-`headline_is_derived`, stored as `headline_only`, and never auto-accept.
+`tracker sources list` shows the register. Adding an outlet or a market is an
+edit to [config/sources.yaml](config/sources.yaml).
+
+| Source | Route | Depth | Notes |
+|---|---|---|---|
+| Asia Business Law Journal + archive | feed, sitemaps, article pages | 2019 | The strongest reachable APAC source: HK, SG, CN, JP, KR, ID |
+| Australasian Lawyer + archive | feed, year sitemaps, article pages | 2019 | AU/NZ; headlines rarely name the person, the body does |
+| Law.com (7 ALM titles) | feeds, article pages | live window only (20 items per title) | Named in the brief; names both firms in the headline |
+| Rajah & Tann Asia | paginated WordPress feed | 2020 | Tier 1 — firm newsroom |
+| Global Legal Post, Legal Business | feeds | live window | |
+| Asian Legal Business | — | — | 403 on every path including robots.txt; not circumvented. Newsletter (IMAP) adapter built, needs a subscription |
+| Global Legal Post archive | — | — | Client-fingerprint block on `/sitemap.xml`; not circumvented |
+
+## Reading the data
+
+Read `analysis_moves`, not `moves`. It joins each canonical move to its primary
+practice group, primary source, tier and date quality, and exposes — rather
+than applies — the filters a question needs. `practice_group_trend` gives share
+of classified moves per source per quarter; `source_period_coverage` is the
+denominator every series must be shown against. The reasoning, and the biases
+no query can remove, are in [docs/methodology.md](docs/methodology.md).
 
 ## Layout
 
 ```
-config/         sources.yaml — the whole configuration surface for outlets
-docs/           Compliance statement, data model notes
-migrations/     Plain SQL, applied in filename order. No ORM-inferred schema.
+config/         sources.yaml, firms.yaml, places.yaml
+taxonomy/       practice_groups.yaml, sectors.yaml, taxonomy_mappings.yaml (one version)
+docs/           constraints (Phase 0), data-model (Phase 1), methodology (Phase 5), setup
+migrations/     Plain SQL, applied in order, checksummed, immutable once applied
 tracker/        Python package; CLI entry point is `tracker`
   net/          The only place an outbound request is made
   sources/      One adapter per outlet behind fetch() -> list[RawItem]
-  extract/      Schema, prompt, span verification, confidence
+  extract/      Rules, body rules, role parsing, spans, confidence
   pipeline/     Stages and run bookkeeping
-tests/          Run against a real Postgres in CI, not mocks
-  fixtures/     Gold set and gate cases, versioned
+tests/          Real Postgres in CI; guarded against non-local databases
+CLAUDE.md       Working rules for anyone (or anything) changing this repo
 ```
-
-## Sources
-
-`tracker sources list` shows the register, including what is not being
-collected and why. Adding an outlet or a region is an edit to
-[config/sources.yaml](config/sources.yaml), not a code change.
-
-Asian Legal Business — the brief's primary APAC source — is registered but
-inactive: the origin returns 403 to our client on every path including
-`/robots.txt`, which Phase 0 treats as a disallow. Restoring it is a licensing
-conversation, not an engineering one.
-
-## Reading the data
-
-Everything the dashboard shows is derived from `moves`, the canonical
-deduplicated record. A move is only canonical while `superseded_by_move_id` is
-null; merges create a new canonical row rather than overwriting either input, so
-the pre-merge reports stay auditable.
-
-Source article text is never stored. See [docs/constraints.md](docs/constraints.md).

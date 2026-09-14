@@ -27,6 +27,13 @@ MAPPINGS_PATH = TAXONOMY_DIR / "taxonomy_mappings.yaml"
 UNCLASSIFIED = "unclassified"
 MAX_SECONDARY = 2
 
+# How much a classification is discounted by where its evidence came from.
+# A stated practice clause is the article's own claim about the person. A
+# headline usually describes the hire but sometimes the firm ("IP firm adds
+# partner"). A body sentence is the weakest: proximity to the name is not the
+# same as being about the name.
+EVIDENCE_WEIGHT = {"stated": 1.0, "headline": 0.75, "body": 0.6}
+
 _PUNCT = re.compile(r"[^\w\s&]")
 _WS = re.compile(r"\s+")
 
@@ -234,6 +241,64 @@ class Taxonomy:
         return Assignment(
             primary=UNCLASSIFIED, rule_key="no_mapping_matched", confidence=0.0
         )
+
+    def classify_from(self, evidence: list[tuple[str, str | None]]) -> Assignment:
+        """Classify from the best evidence available, in the order given.
+
+        `evidence` is [(kind, text), ...]. The kinds, strongest first:
+
+          stated    the practice clause the article attached to the person —
+                    "as a partner in its white-collar defence practice"
+          headline  the headline, which names the practice far more often than
+                    it names the person: "Cooley grows capital markets with new
+                    partner in Beijing"
+          body      the sentence(s) in the body that mention this person
+
+        Measured motivation: under stated-only classification 68% of records
+        were unclassified, and a practice-group trend over 32% of the data is
+        not a trend. The headline is stored in raw_items, so a headline-derived
+        assignment is fully auditable; it is recorded at lower confidence and
+        with the evidence kind in its rule key, so an analysis can choose the
+        floor it trusts.
+
+        A `not_a_practice` hit is decisive only for stated evidence: an article
+        that attaches "pro bono" to the person has said what the role is. The
+        same word in a headline may describe the firm's week, not the hire.
+        """
+        had_text = False
+        for kind, text in evidence:
+            if not text:
+                continue
+            had_text = True
+            found = self.classify(text)
+            key = found.rule_key or ""
+            if key.startswith("not_a_practice") and kind != "stated":
+                continue
+            if found.primary == UNCLASSIFIED and not key.startswith("not_a_practice"):
+                continue
+            weight = EVIDENCE_WEIGHT[kind]
+            return Assignment(
+                primary=found.primary,
+                secondary=found.secondary,
+                rule_key=f"{kind}:{key}",
+                confidence=round(found.confidence * weight, 3),
+            )
+        return Assignment(
+            primary=UNCLASSIFIED,
+            rule_key="no_evidence_matched" if had_text else "no_practice_text",
+            confidence=0.0,
+        )
+
+    def matched_phrase(self, text: str) -> str | None:
+        """The mapping phrase `classify` fired on, for provenance spans."""
+        if not text or self._pattern is None:
+            return None
+        normalised = normalise(text)
+        for match in self._pattern.finditer(normalised):
+            phrase = normalise(match.group(0))
+            if phrase in self._not_practice or phrase in self._mappings:
+                return phrase
+        return None
 
     # -- lookups -----------------------------------------------------------
 

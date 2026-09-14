@@ -12,7 +12,7 @@
 # Versioned alongside practice_groups.yaml: one taxonomy release covers both
 # axes, so a move's practice and sector always come from the same vintage.
 
-version: 1.0.0
+version: 1.1.0
 
 sectors:
   - code: financial_services

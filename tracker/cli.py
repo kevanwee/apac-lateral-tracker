@@ -592,7 +592,7 @@ def reextract_cmd(slug: str | None, do_apply: bool, reason: str) -> None:
             JOIN sources s ON s.id = ri.source_id
             LEFT JOIN move_sources ms ON ms.raw_item_id = ri.id
             LEFT JOIN moves m ON m.id = ms.move_id
-            WHERE ri.processing_state <> 'new' {where}
+            WHERE ri.processing_state <> 'new' AND ri.gate_passed {where}
             GROUP BY s.slug ORDER BY moves DESC
             """,
             params,
@@ -622,7 +622,10 @@ def reextract_cmd(slug: str | None, do_apply: bool, reason: str) -> None:
             UPDATE raw_items ri SET processing_state = 'new', reject_reason = NULL,
                    error_message = NULL, processed_at = NULL, body_read_at = NULL
             FROM sources s
-            WHERE s.id = ri.source_id AND ri.processing_state <> 'new' {where}
+            WHERE s.id = ri.source_id AND ri.processing_state <> 'new'
+              -- Only items extraction looked at. A gate rejection is the
+              -- gate's decision and its reason must survive a re-extraction.
+              AND ri.gate_passed {where}
             """,
             params,
         ).rowcount
@@ -631,6 +634,40 @@ def reextract_cmd(slug: str | None, do_apply: bool, reason: str) -> None:
     click.echo("")
     click.echo(f"discarded {deleted} move(s); {reset} item(s) marked for extraction again")
     click.echo(f"reason: {reason}")
+
+
+@cli.group("cache")
+def cache_group() -> None:
+    """The local article cache. See docs/constraints.md section 2."""
+
+
+@cache_group.command("status")
+def cache_status() -> None:
+    from tracker.pipeline.extract import ARTICLE_CACHE, load_article_cache
+
+    entries = load_article_cache()
+    size = ARTICLE_CACHE.stat().st_size if ARTICLE_CACHE.exists() else 0
+    click.echo(f"{ARTICLE_CACHE}: {len(entries)} article(s), {size / 1024:.0f} KiB")
+
+
+@cache_group.command("purge")
+@click.confirmation_option(
+    prompt="Delete the local article cache? The next extraction re-fetches pages."
+)
+def cache_purge() -> None:
+    """Delete the cache. Do this when a re-extraction campaign is finished.
+
+    The cache is a working file for one campaign, not a corpus; the retention
+    rule in docs/constraints.md is that it does not outlive the campaign.
+    """
+    from tracker.pipeline.extract import ARTICLE_CACHE
+
+    if not ARTICLE_CACHE.exists():
+        click.echo("no cache to purge")
+        return
+    entries = len(__import__("json").loads(ARTICLE_CACHE.read_text(encoding="utf-8")) or {})
+    ARTICLE_CACHE.unlink()
+    click.echo(f"purged {entries} cached article(s)")
 
 
 @cli.command("status")

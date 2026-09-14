@@ -17,10 +17,14 @@
 # collapsing the two destroys the ability to answer whether growth is in the
 # practice or in the sector.
 
-version: 1.0.0
+version: 1.1.0
 notes: >-
-  Initial taxonomy. Structure follows the brief; codes are stable identifiers
-  and should outlive display-name changes.
+  Structure unchanged from 1.0.0. Mapping release: bare, ambiguous practice
+  words ("corporate", "litigation", "tax", "compliance") now map to their
+  parent group rather than to one child. Under 1.0.0 every "corporate partner"
+  was filed as Corporate Governance, which would have drawn a governance trend
+  that the articles never stated. Assignments made under 1.0.0 keep that
+  version; nothing is rewritten.
 
 groups:
   - code: corporate

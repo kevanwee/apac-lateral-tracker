@@ -638,27 +638,27 @@ firms:
   # recognised, so the destination either fell to another firm named in the
   # text or the record was abstained on entirely.
   - name: Cooley
-    type: us
+    type: global
     hq: US
     aliases: [Cooley LLP]
   - name: Dorsey & Whitney
-    type: us
+    type: global
     hq: US
     aliases: [Dorsey, Dorsey and Whitney]
   - name: Paul Hastings
-    type: us
+    type: global
     hq: US
     aliases: [Paul Hastings LLP]
   - name: PDLegal
-    type: singapore
+    type: local
     hq: SG
     aliases: [PDLegal LLC, PD Legal]
   - name: Chang Tsi & Partners
-    type: china
+    type: local
     hq: CN
     aliases: [Chang Tsi]
   - name: Shihui Partners
-    type: china
+    type: local
     hq: CN
     aliases: [Shihui]
   - name: Makarim & Taira S

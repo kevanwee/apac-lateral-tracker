@@ -1,3 +1,8 @@
+> **Superseded on 2026-09-14.** This document describes the state before the
+> database, taxonomy, article reading and the ABLJ archive existed. It is kept
+> for the decisions log. Current state: `README.md`; working rules:
+> `CLAUDE.md`; how trends are computed: `docs/methodology.md`.
+
 # Handoff: APAC partner lateral-movement pipeline — paused mid-fix on extraction yield
 
 ## Objective

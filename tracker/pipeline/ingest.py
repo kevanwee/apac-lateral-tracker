@@ -395,14 +395,15 @@ def sync_taxonomy(conn: psycopg.Connection) -> tuple[str, int, int]:
             )
         return tax.version, len(tax.practice_groups), len(tax.sectors)
 
+    # Exactly one current version is a partial unique index, so the old
+    # current has to step down before the new one is inserted. The other
+    # order works only for the very first load, which is how it survived
+    # until the first real version bump.
+    conn.execute("UPDATE taxonomy_versions SET is_current = false WHERE is_current")
     conn.execute(
         "INSERT INTO taxonomy_versions (version, checksum, notes, is_current) "
         "VALUES (%s, %s, %s, true)",
         (tax.version, tax.checksum, "loaded by tracker taxonomy load"),
-    )
-    conn.execute(
-        "UPDATE taxonomy_versions SET is_current = false WHERE version <> %s",
-        (tax.version,),
     )
 
     # Parents first, so a child's composite FK to its parent resolves.

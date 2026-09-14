@@ -17,8 +17,8 @@
 # Every `primary` and `secondary` must be a code in practice_groups.yaml, or
 # loading fails. There is no way to name a node that does not exist.
 
-version: 1.0.0
-taxonomy_version: 1.0.0
+version: 1.1.0
+taxonomy_version: 1.1.0
 
 mappings:
   # --- Corporate ---------------------------------------------------------
@@ -36,8 +36,15 @@ mappings:
   - {match: corporate governance, primary: corporate.governance}
   - {match: company secretarial, primary: corporate.governance}
   - {match: corporate advisory, primary: corporate.governance}
-  - {match: corporate, primary: corporate.governance}
-  - {match: commercial, primary: corporate.governance}
+  # Bare "corporate" and "commercial" are the two most common practice words in
+  # APAC trade press and say nothing about which corporate practice. They map
+  # to the parent, the same way bare "ip" does below. Filing them under one
+  # child invents a level-2 trend the text never stated.
+  - {match: corporate, primary: corporate}
+  - {match: commercial, primary: corporate}
+  - {match: corporate and commercial, primary: corporate}
+  - {match: foreign investment, primary: corporate.m_and_a}
+  - {match: cross-border, primary: corporate.m_and_a}
 
   # --- Finance -----------------------------------------------------------
   - {match: banking and finance, primary: finance.banking}
@@ -68,10 +75,12 @@ mappings:
   - {match: arbitration, primary: disputes.international_arbitration}
   - {match: commercial litigation, primary: disputes.commercial_litigation}
   - {match: commercial disputes, primary: disputes.commercial_litigation}
-  - {match: dispute resolution, primary: disputes.commercial_litigation}
-  - {match: litigation and dispute resolution, primary: disputes.commercial_litigation}
-  - {match: disputes, primary: disputes.commercial_litigation}
-  - {match: litigation, primary: disputes.commercial_litigation}
+  # Bare disputes words go to the parent: "litigation partner" may be IP,
+  # class actions or commercial, and the text has not said which.
+  - {match: dispute resolution, primary: disputes}
+  - {match: litigation and dispute resolution, primary: disputes}
+  - {match: disputes, primary: disputes}
+  - {match: litigation, primary: disputes}
   - {match: white collar, primary: disputes.white_collar}
   - {match: white-collar, primary: disputes.white_collar}
   - {match: white-collar defence and investigations, primary: disputes.white_collar}
@@ -92,11 +101,15 @@ mappings:
   - {match: financial services regulatory, primary: regulatory.financial_services}
   - {match: financial regulation, primary: regulatory.financial_services}
   - {match: financial services, primary: regulatory.financial_services}
-  - {match: regulatory and compliance, primary: regulatory.financial_services}
-  - {match: compliance, primary: regulatory.financial_services}
+  - {match: regulatory and compliance, primary: regulatory}
+  - {match: compliance, primary: regulatory}
+  - {match: corporate compliance, primary: regulatory}
+  - {match: regulatory, primary: regulatory}
+  - {match: fintech, primary: regulatory.financial_services}
   - {match: data protection and privacy, primary: regulatory.data_protection}
   - {match: data protection, primary: regulatory.data_protection}
   - {match: data privacy, primary: regulatory.data_protection}
+  - {match: data compliance, primary: regulatory.data_protection}
   - {match: privacy, primary: regulatory.data_protection}
   - {match: cybersecurity, primary: regulatory.cybersecurity}
   - {match: cyber, primary: regulatory.cybersecurity}
@@ -121,6 +134,10 @@ mappings:
   - {match: brand protection, primary: intellectual_property.trade_marks}
   - {match: ip litigation, primary: intellectual_property.litigation}
   - {match: technology transactions, primary: intellectual_property.tech_transactions}
+  - {match: tmt, primary: intellectual_property.tech_transactions}
+  - {match: technology media and telecommunications, primary: intellectual_property.tech_transactions}
+  # Bare "technology" is a sector word wearing a practice hat; parent only.
+  - {match: technology, primary: intellectual_property}
   - {match: licensing, primary: intellectual_property.tech_transactions}
   - {match: licencing, primary: intellectual_property.tech_transactions}
   # Bare "IP" is genuinely ambiguous between the four children, so it maps to
@@ -164,13 +181,14 @@ mappings:
   - {match: tax disputes, primary: tax.transfer_pricing, secondary: [disputes.commercial_litigation]}
   - {match: transactional tax, primary: tax.corporate_tax}
   - {match: corporate tax, primary: tax.corporate_tax}
-  - {match: tax, primary: tax.corporate_tax}
+  - {match: tax, primary: tax}
 
   # --- Specialist --------------------------------------------------------
   - {match: shipping and insurance, primary: specialist.shipping_aviation, secondary: [specialist.insurance]}
   - {match: aviation and asset finance, primary: specialist.shipping_aviation, secondary: [finance.banking]}
   - {match: shipping and aviation, primary: specialist.shipping_aviation}
   - {match: marine, primary: specialist.shipping_aviation}
+  - {match: maritime, primary: specialist.shipping_aviation}
   - {match: shipping, primary: specialist.shipping_aviation}
   - {match: aviation, primary: specialist.shipping_aviation}
   - {match: insurance, primary: specialist.insurance}
@@ -189,6 +207,9 @@ mappings:
 # Phrases that look like a practice and are not. Matching one yields
 # `unclassified` rather than a wrong node — a firm-wide role is not a practice.
 not_a_practice:
+  - general counsel
+  - in-house
+  - in house
   - pro bono
   - diversity
   - diversity and inclusion

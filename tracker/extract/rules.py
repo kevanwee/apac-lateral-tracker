@@ -52,7 +52,12 @@ from tracker.sources.base import RawItem
 
 log = logging.getLogger(__name__)
 
-RULES_VERSION = "rules/2.0.0"
+# Bumped whenever a change alters what the rules produce, so a stored record
+# can be attributed to the version that wrote it (moves.extractor_version).
+#   2.0.0  headline templates plus body reading
+#   2.1.0  firm-boundary fix, direction cues, person-slot cleaning, headline
+#          jurisdiction on the body path
+RULES_VERSION = "rules/2.1.0"
 
 # Loaded once: the place gazetteer is read-only and shared.
 PLACES = PlaceGazetteer.load()
@@ -130,6 +135,11 @@ NAVIGATION_WORDS = {
     "rankings", "ranking", "awards", "briefing", "briefings", "bulletin",
     "weekly", "daily", "monthly", "edition", "archive", "archives",
     "copyright", "privacy", "terms", "contact", "about", "home",
+    # Breadcrumbs and section names that precede an ABLJ body: "Market pulse
+    # News Carlton Ng ..." — the name follows the section, and the section is
+    # capitalised.
+    "news", "pulse", "insights", "analysis", "opinion", "feature", "features",
+    "column", "magazine", "premium", "exclusive",
 }
 
 # Regulator, agency and jurisdiction words. Trade press writes "Ex-SafeWork NSW
@@ -483,6 +493,17 @@ class RuleExtractor:
                 quality="recovered",
                 excerpt=_excerpt(body, person_start, person_end),
             )
+            # The headline names the office more reliably than the body does
+            # ("... in HK office"), and the template path already reads it;
+            # the body path did not, which is why jurisdiction coverage sat at
+            # 9% while the headlines were naming cities.
+            from_headline = PLACES.find(headline)
+            if from_headline:
+                fields["office_jurisdiction"] = VerifiedField(
+                    name="office_jurisdiction", value=from_headline,
+                    span_start=0, span_end=len(headline), quality="recovered",
+                    excerpt=_excerpt(headline, 0, len(headline)),
+                )
 
             present = {f for f in confidence.COMPLETENESS_WEIGHTS if f in fields}
             moves.append(

@@ -23,7 +23,9 @@ PLACES = PlaceGazetteer.load()
 
 
 def test_the_taxonomy_loads_and_is_two_levels():
-    assert TAXONOMY.version == "1.0.0"
+    # The current release. Bumped with every mapping change; the notes field
+    # in practice_groups.yaml says what each release changed.
+    assert TAXONOMY.version == "1.1.0"
     assert {n.level for n in TAXONOMY.practice_groups} == {1, 2}
     for node in TAXONOMY.practice_groups:
         if node.level == 2:
@@ -70,7 +72,7 @@ def test_every_mapping_names_a_node_that_exists():
 def test_a_mapping_to_an_unknown_node_is_refused(tmp_path):
     bad = tmp_path / "mappings.yaml"
     bad.write_text(
-        "version: 1.0.0\ntaxonomy_version: 1.0.0\n"
+        f"version: {TAXONOMY.version}\ntaxonomy_version: {TAXONOMY.version}\n"
         "mappings:\n  - {match: nonsense, primary: does.not.exist}\n",
         encoding="utf-8",
     )
@@ -99,7 +101,7 @@ def test_a_taxonomy_without_the_sentinel_is_refused(tmp_path):
 def test_secondary_groups_are_capped_at_two(tmp_path):
     bad = tmp_path / "mappings.yaml"
     bad.write_text(
-        "version: 1.0.0\ntaxonomy_version: 1.0.0\nmappings:\n"
+        f"version: {TAXONOMY.version}\ntaxonomy_version: {TAXONOMY.version}\nmappings:\n"
         "  - match: too many\n    primary: corporate\n"
         "    secondary: [finance, disputes, tax]\n",
         encoding="utf-8",

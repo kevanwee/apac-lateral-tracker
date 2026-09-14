@@ -237,7 +237,10 @@ def run(
             continue
 
         for slot, move in enumerate(result.moves):
-            _persist(conn, recorder, row, move, slot, taxonomy=taxonomy)
+            _persist(
+                conn, recorder, row, move, slot, taxonomy=taxonomy,
+                item=item, extractor_version=result.model or None,
+            )
 
         _mark(conn, row["id"], "extracted")
         conn.commit()
@@ -276,7 +279,9 @@ def _record_llm_call(conn, recorder: RunRecorder, row, result) -> None:
     )
 
 
-def _classify(conn, move_id, practice_text: str | None, taxonomy) -> bool:
+def _classify(
+    conn, move_id, raw_item_id, evidence: list[tuple[str, str | None]], taxonomy
+) -> bool:
     """Assign exactly one primary practice group, plus up to two secondary.
 
     Always assigns something. A move whose practice cannot be placed gets the
@@ -284,9 +289,39 @@ def _classify(conn, move_id, practice_text: str | None, taxonomy) -> bool:
     unclassified records in the denominator of every chart and satisfies the
     exactly-one-primary invariant the database enforces.
 
+    `evidence` is [(kind, text)] strongest first — see Taxonomy.classify_from.
+    When the assignment came from the headline or a body sentence rather than
+    a stated practice clause, the phrase it fired on is written to
+    move_field_evidence so the assignment is as auditable as the rest of the
+    record.
+
     Returns True when the assignment needed a human's attention.
     """
-    assignment = taxonomy.classify(practice_text)
+    assignment = taxonomy.classify_from(evidence)
+
+    kind = (assignment.rule_key or "").split(":", 1)[0]
+    if kind in {"headline", "body"}:
+        text = next((t for k, t in evidence if k == kind and t), "")
+        phrase = taxonomy.matched_phrase(text)
+        if phrase:
+            import re
+
+            pattern = r"\s+".join(re.escape(w) for w in phrase.split())
+            hit = re.search(pattern, text, re.IGNORECASE)
+            if hit:
+                from tracker.extract.spans import _excerpt
+
+                conn.execute(
+                    """
+                    INSERT INTO move_field_evidence
+                        (move_id, raw_item_id, field_name, span_start, span_end,
+                         extracted_value, excerpt)
+                    VALUES (%s, %s, 'practice_group', %s, %s, %s, %s)
+                    ON CONFLICT (move_id, raw_item_id, field_name) DO NOTHING
+                    """,
+                    (move_id, raw_item_id, hit.start(), hit.end(), hit.group(0),
+                     _excerpt(text, hit.start(), hit.end())),
+                )
 
     ids = {}
     for code in (assignment.primary, *assignment.secondary):
@@ -386,8 +421,29 @@ def _resolve_person(conn, name: str):
     return row["id"]
 
 
+def _jurisdiction_from_url(url: str) -> tuple[str, str] | None:
+    """(code, slug text) when the article URL names a place, else None.
+
+    Some outlets put the office in the URL and nowhere we can read: Asia
+    Business Law Journal slugs {firm}-{person}-{city}. The gate already uses
+    this to admit the item; extraction then threw the place away, which is
+    why jurisdiction coverage on that source sat near zero. The place
+    gazetteer is deterministic and the URL is stored, so the derivation is
+    reproducible and the slug is recorded as the evidence.
+    """
+    from tracker.extract.rules import PLACES
+    from tracker.sources.sitemap import headline_from_slug
+
+    slug_text = headline_from_slug(url)
+    if not slug_text:
+        return None
+    code = PLACES.find(slug_text)
+    return (code, slug_text) if code else None
+
+
 def _persist(
-    conn, recorder: RunRecorder, row, move: ExtractedMove, slot: int, *, taxonomy=None
+    conn, recorder: RunRecorder, row, move: ExtractedMove, slot: int, *,
+    taxonomy=None, item=None, extractor_version: str | None = None,
 ) -> None:
     person_name = move.person_name
     if not person_name:
@@ -412,10 +468,16 @@ def _persist(
         from_firm_id = None
 
     jurisdiction = move.value("office_jurisdiction")
+    url_jurisdiction = None
+    if not jurisdiction:
+        url_jurisdiction = _jurisdiction_from_url(row["url"])
+        if url_jurisdiction:
+            jurisdiction = url_jurisdiction[0]
     if jurisdiction and not conn.execute(
         "SELECT 1 FROM jurisdictions WHERE code = %s", (jurisdiction,)
     ).fetchone():
         jurisdiction = None  # unknown market; surfaced via review below
+        url_jurisdiction = None
 
     needs_review = move.needs_review or to_is_new or from_is_new
 
@@ -424,8 +486,9 @@ def _persist(
         INSERT INTO moves
             (person_id, from_firm_id, to_firm_id, title_from, title_to,
              partner_tier, office_jurisdiction, announced_date, move_type,
-             confidence, confidence_components, review_state, extraction_fingerprint)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s::date, %s, %s, %s, %s, %s)
+             confidence, confidence_components, review_state, extraction_fingerprint,
+             extractor_version)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s::date, %s, %s, %s, %s, %s, %s)
         RETURNING id
         """,
         (
@@ -435,11 +498,25 @@ def _persist(
             row["published_at"], move_type,
             move.confidence.total, _json(move.confidence.as_dict()),
             "pending_review" if needs_review else "auto_accepted",
-            fp,
+            fp, extractor_version,
         ),
     ).fetchone()
     move_id = created["id"]
     recorder.moves_created += 1
+
+    if url_jurisdiction:
+        # The slug is the evidence, and it is what a reviewer needs to see.
+        code, slug_text = url_jurisdiction
+        conn.execute(
+            """
+            INSERT INTO move_field_evidence
+                (move_id, raw_item_id, field_name, span_start, span_end,
+                 extracted_value, excerpt)
+            VALUES (%s, %s, 'office_jurisdiction', 0, %s, %s, %s)
+            ON CONFLICT (move_id, raw_item_id, field_name) DO NOTHING
+            """,
+            (move_id, row["id"], len(slug_text), code, f"url slug: {slug_text}"),
+        )
 
     conn.execute(
         "INSERT INTO move_sources (move_id, raw_item_id, is_primary) VALUES (%s, %s, true)",
@@ -470,7 +547,15 @@ def _persist(
         )
 
     if taxonomy is not None:
-        unplaced = _classify(conn, move_id, move.value("practice_text"), taxonomy)
+        from tracker.extract import body_rules
+
+        body = item.body_text if item is not None else None
+        evidence = [
+            ("stated", move.value("practice_text")),
+            ("headline", row["headline"]),
+            ("body", body_rules.sentences_about(person_name, body) if body else None),
+        ]
+        unplaced = _classify(conn, move_id, row["id"], evidence, taxonomy)
         if unplaced and not needs_review:
             # An unplaceable practice is a judgement call, not a failure. It
             # goes to a human, and the resolution should grow the mapping file.
