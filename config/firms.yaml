@@ -665,3 +665,146 @@ firms:
     type: other
     hq: ID
     aliases: [Makarim and Taira S, Makarim & Taira]
+
+  # ---------------------------------------------------------------------
+  # Added from the recall audit of 2026-09-14.
+  #
+  # A destination firm the gazetteer cannot resolve makes the extractor
+  # discard the item without reading its body, so an absent firm is not a
+  # missing label -- it is a missing record. 656 of 1,278 rejected
+  # gate-passed items failed at exactly that step. Every firm below was read
+  # off the leading phrase of a rejected headline whose article does report a
+  # partner move. Leads that are not firms ("projects partner", "new
+  # partners", "ACC Hong Kong", "SIAC procedure") were left out.
+  #
+  # No two-letter alias is added: closing up an ampersand would collide with
+  # SC, AG, AO and RT. See tests/test_firm_ampersands.py.
+  # ---------------------------------------------------------------------
+  - name: King & Spalding
+    type: global
+    hq: US
+    aliases: [King and Spalding]
+  - name: K&L Gates
+    type: global
+    hq: US
+    aliases: [KL Gates, K and L Gates]
+  - name: Morgan Lewis
+    type: global
+    hq: US
+    aliases: [Morgan Lewis & Bockius, "Morgan, Lewis & Bockius"]
+  - name: Seyfarth Shaw
+    type: global
+    hq: US
+    aliases: [Seyfarth]
+  - name: Arnold & Porter
+    type: global
+    hq: US
+    aliases: [Arnold and Porter, Arnold & Porter Kaye Scholer]
+  - name: Addisons
+    type: local
+    hq: AU
+    aliases: [Addisons Lawyers]
+  - name: Gilchrist Connell
+    type: local
+    hq: AU
+    aliases: []
+  - name: Carter Newell
+    type: local
+    hq: AU
+    aliases: [Carter Newell Lawyers]
+  - name: Finlaysons
+    type: local
+    hq: AU
+    aliases: [Finlaysons Lawyers]
+  - name: Kingston Reid
+    type: boutique
+    hq: AU
+    aliases: []
+  - name: KHQ Lawyers
+    type: local
+    hq: AU
+    aliases: [KHQ]
+  - name: Moulis Legal
+    type: boutique
+    hq: AU
+    aliases: []
+  - name: Chamberlains
+    type: local
+    hq: AU
+    aliases: [Chamberlains Law Firm]
+  - name: Hunt & Hunt
+    type: local
+    hq: AU
+    aliases: [Hunt and Hunt]
+  - name: KCL Law
+    type: local
+    hq: AU
+    aliases: []
+  - name: Logie-Smith Lanyon
+    type: local
+    hq: AU
+    aliases: [Logie Smith Lanyon]
+  - name: Kalus Kenny Intelex
+    type: local
+    hq: AU
+    aliases: [KKI]
+  - name: Ironbridge Legal
+    type: boutique
+    hq: AU
+    aliases: []
+  - name: MolinoCahill
+    type: boutique
+    hq: AU
+    aliases: [Molino Cahill]
+  - name: Baybridge Lawyers
+    type: boutique
+    hq: AU
+    aliases: []
+  - name: WRP Legal & Advisory
+    type: local
+    hq: AU
+    aliases: [WRP Legal and Advisory, WRP Legal]
+  - name: Burch & Co
+    type: boutique
+    hq: AU
+    aliases: [BurchCo, Burch and Co]
+  - name: Velocity Legal
+    type: boutique
+    hq: AU
+    aliases: []
+  - name: Spruson & Ferguson
+    type: local
+    hq: AU
+    aliases: [Spruson and Ferguson]
+  - name: Rigby Cooke
+    type: local
+    hq: AU
+    aliases: [Rigby Cooke Lawyers]
+  - name: Wintell & Co
+    type: local
+    hq: CN
+    aliases: [Wintell and Co]
+  - name: Grandway Law Offices
+    type: local
+    hq: CN
+    aliases: [Grandway]
+  - name: Economic Laws Practice
+    type: local
+    hq: IN
+    aliases: [ELP]
+  - name: Lim Chee Wee Partnership
+    type: boutique
+    hq: MY
+    aliases: [LCWP]
+  - name: V&T Law Firm
+    type: local
+    hq: CN
+    aliases: [V and T Law Firm]
+  - name: Jia Yuan Law Offices
+    type: local
+    hq: CN
+    aliases: [Jia Yuan]
+  - name: Yulchon
+    type: regional
+    hq: KR
+    aliases: [Yulchon LLC]
